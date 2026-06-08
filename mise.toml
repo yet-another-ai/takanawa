@@ -2,6 +2,7 @@
 lockfile = true
 
 [tools]
+java = "temurin-17"
 rust = { version = "latest", components = "rustfmt,clippy" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
@@ -53,6 +54,24 @@ run = "bash scripts/build-android.sh"
 sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
 outputs = ["target/android/jniLibs"]
 
+[tasks."test:android"]
+description = "Run Android SDK unit tests"
+run = "./gradlew :takanawa-android:test"
+sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties"]
+
+[tasks."package:android-aar"]
+description = "Build and verify the Android release AAR"
+depends = ["package:android"]
+run = "./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:assembleRelease :takanawa-android:verifyReleaseAar"
+sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xml", "android/**/consumer-rules.pro", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+outputs = ["android/takanawa-android/build/outputs/aar/takanawa-android-release.aar"]
+
+[tasks."publish:android-local"]
+description = "Publish the Android SDK to Maven local and build the local smoke app"
+depends = ["package:android"]
+run = "./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishToMavenLocal :takanawa-android:verifyMavenLocalPublication :android-maven-local-smoke:assembleDebug"
+sources = ["android/**/*.kt", "android/**/*.kts", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+
 [tasks."package:apple"]
 description = "Build the Apple XCFramework and SwiftPM binary artifact"
 depends = ["header"]
@@ -85,4 +104,4 @@ sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
 [tasks.package]
 description = "Build all distributable platform artifacts"
-depends = ["package:android", "package:swiftpm"]
+depends = ["package:android-aar", "package:swiftpm"]

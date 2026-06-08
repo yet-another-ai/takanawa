@@ -503,6 +503,347 @@ const fn phase_to_u32(phase: DownloadPhase) -> u32 {
     phase as u32
 }
 
+#[cfg(feature = "jni")]
+mod android_jni {
+    use std::ffi::CString;
+    use std::ptr;
+
+    use jni::JNIEnv;
+    use jni::objects::{JByteArray, JClass, JLongArray, JString};
+    use jni::sys::{jbyte, jint, jlong, jstring};
+
+    use super::{
+        TKNW_ABI_VERSION, TknwDownload, TknwDownloadConfig, TknwDownloadSnapshot, TknwGlobalConfig,
+        TknwHashKind, TknwStatus, tknw_download_cancel, tknw_download_copy_bitmap,
+        tknw_download_create, tknw_download_last_error, tknw_download_pause, tknw_download_release,
+        tknw_download_snapshot, tknw_download_start, tknw_global_init, tknw_global_set_max_io,
+        tknw_global_shutdown,
+    };
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_globalInit(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        max_io: jint,
+    ) -> jint {
+        let Ok(max_io) = usize::try_from(max_io) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        let config = TknwGlobalConfig {
+            abi_version: TKNW_ABI_VERSION,
+            struct_size: size_of::<TknwGlobalConfig>(),
+            max_io,
+        };
+        status_code(tknw_global_init(&raw const config))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_globalShutdown(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) -> jint {
+        status_code(tknw_global_shutdown())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_globalSetMaxIo(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        max_io: jint,
+    ) -> jint {
+        let Ok(max_io) = usize::try_from(max_io) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        status_code(tknw_global_set_max_io(max_io))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadCreate(
+        mut env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        url: JString<'_>,
+        target_path: JString<'_>,
+        chunk_size: jlong,
+        parallelism: jint,
+        expected_sha256: JByteArray<'_>,
+        out_handle: JLongArray<'_>,
+    ) -> jint {
+        let Ok(chunk_size) = u64::try_from(chunk_size) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        let Ok(parallelism) = usize::try_from(parallelism) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+
+        let url = match read_java_string(&mut env, &url) {
+            Ok(url) => url,
+            Err(status) => return status_code(status),
+        };
+        let target_path = match read_java_string(&mut env, &target_path) {
+            Ok(target_path) => target_path,
+            Err(status) => return status_code(status),
+        };
+        let expected_hash = match read_optional_hash(&env, &expected_sha256) {
+            Ok(expected_hash) => expected_hash,
+            Err(status) => return status_code(status),
+        };
+        let hash_ptr = expected_hash.as_ref().map_or(ptr::null(), Vec::as_ptr);
+        let hash_len = expected_hash.as_ref().map_or(0, Vec::len);
+        let config = TknwDownloadConfig {
+            abi_version: TKNW_ABI_VERSION,
+            struct_size: size_of::<TknwDownloadConfig>(),
+            url: url.as_ptr(),
+            target_path: target_path.as_ptr(),
+            chunk_size,
+            parallelism,
+            hash_kind: if expected_hash.is_some() {
+                TknwHashKind::Sha256 as u32
+            } else {
+                TknwHashKind::None as u32
+            },
+            expected_sha256: hash_ptr,
+            expected_sha256_len: hash_len,
+        };
+        let mut download = ptr::null_mut();
+        let status = tknw_download_create(&raw const config, &raw mut download);
+        if status != TknwStatus::Ok {
+            return status_code(status);
+        }
+
+        write_long_array(&env, &out_handle, &[download as jlong])
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadStart(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+    ) -> jint {
+        status_code(tknw_download_start(download_mut(handle)))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadPause(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+    ) -> jint {
+        status_code(tknw_download_pause(download_mut(handle)))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadCancel(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+    ) -> jint {
+        status_code(tknw_download_cancel(download_mut(handle)))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadSnapshot(
+        env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+        out_snapshot: JLongArray<'_>,
+    ) -> jint {
+        let mut snapshot = TknwDownloadSnapshot {
+            abi_version: TKNW_ABI_VERSION,
+            struct_size: size_of::<TknwDownloadSnapshot>(),
+            phase: 0,
+            content_len: 0,
+            downloaded_bytes: 0,
+            chunk_size: 0,
+            chunk_count: 0,
+            completed_chunks: 0,
+            active_io: 0,
+        };
+        let status = tknw_download_snapshot(download_const(handle), &raw mut snapshot);
+        if status != TknwStatus::Ok {
+            return status_code(status);
+        }
+
+        let values = match snapshot_values(&snapshot) {
+            Ok(values) => values,
+            Err(status) => return status_code(status),
+        };
+        write_long_array(&env, &out_snapshot, &values)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadBitmapSize(
+        env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+        out_size: JLongArray<'_>,
+    ) -> jint {
+        let mut written = 0;
+        let status =
+            tknw_download_copy_bitmap(download_const(handle), ptr::null_mut(), 0, &raw mut written);
+        if !matches!(status, TknwStatus::Ok | TknwStatus::BufferTooSmall) {
+            return status_code(status);
+        }
+        let Ok(written) = jlong::try_from(written) else {
+            return status_code(TknwStatus::Internal);
+        };
+        write_long_array(&env, &out_size, &[written])
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadCopyBitmap(
+        env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+        out_bitmap: JByteArray<'_>,
+    ) -> jint {
+        if out_bitmap.as_raw().is_null() {
+            return status_code(TknwStatus::NullPointer);
+        }
+        let Ok(len) = env.get_array_length(&out_bitmap) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        let Ok(len) = usize::try_from(len) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        let mut buffer = vec![0; len];
+        let mut written = 0;
+        let status = tknw_download_copy_bitmap(
+            download_const(handle),
+            buffer.as_mut_ptr(),
+            buffer.len(),
+            &raw mut written,
+        );
+        if status != TknwStatus::Ok {
+            return status_code(status);
+        }
+        let signed = buffer
+            .into_iter()
+            .take(written)
+            .map(|byte| jbyte::from_ne_bytes([byte]))
+            .collect::<Vec<_>>();
+        match env.set_byte_array_region(&out_bitmap, 0, &signed) {
+            Ok(()) => status_code(TknwStatus::Ok),
+            Err(_) => status_code(TknwStatus::Internal),
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadLastError(
+        env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+    ) -> jstring {
+        let message = last_error(download_const(handle));
+        env.new_string(message)
+            .map_or_else(|_| ptr::null_mut(), JString::into_raw)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_ai_yetanother_takanawa_NativeBridge_downloadRelease(
+        _env: JNIEnv<'_>,
+        _class: JClass<'_>,
+        handle: jlong,
+    ) -> jint {
+        let mut download = download_mut(handle);
+        status_code(tknw_download_release(&raw mut download))
+    }
+
+    fn read_java_string(env: &mut JNIEnv<'_>, value: &JString<'_>) -> Result<CString, TknwStatus> {
+        if value.as_raw().is_null() {
+            return Err(TknwStatus::NullPointer);
+        }
+        let value = env
+            .get_string(value)
+            .map_err(|_| TknwStatus::InvalidConfig)?
+            .to_string_lossy()
+            .into_owned();
+        CString::new(value).map_err(|_| TknwStatus::InvalidConfig)
+    }
+
+    fn read_optional_hash(
+        env: &JNIEnv<'_>,
+        value: &JByteArray<'_>,
+    ) -> Result<Option<Vec<u8>>, TknwStatus> {
+        if value.as_raw().is_null() {
+            return Ok(None);
+        }
+        let hash = env
+            .convert_byte_array(value)
+            .map_err(|_| TknwStatus::InvalidConfig)?;
+        Ok(Some(hash))
+    }
+
+    fn write_long_array(env: &JNIEnv<'_>, array: &JLongArray<'_>, values: &[jlong]) -> jint {
+        if array.as_raw().is_null() {
+            return status_code(TknwStatus::NullPointer);
+        }
+        let Ok(len) = env.get_array_length(array) else {
+            return status_code(TknwStatus::InvalidConfig);
+        };
+        let Ok(required_len) = i32::try_from(values.len()) else {
+            return status_code(TknwStatus::Internal);
+        };
+        if len < required_len {
+            return status_code(TknwStatus::BufferTooSmall);
+        }
+        match env.set_long_array_region(array, 0, values) {
+            Ok(()) => status_code(TknwStatus::Ok),
+            Err(_) => status_code(TknwStatus::Internal),
+        }
+    }
+
+    fn last_error(download: *const TknwDownload) -> String {
+        if download.is_null() {
+            return String::new();
+        }
+        let mut written = 0;
+        let status = tknw_download_last_error(download, ptr::null_mut(), 0, &raw mut written);
+        if !matches!(status, TknwStatus::Ok | TknwStatus::BufferTooSmall) || written == 0 {
+            return String::new();
+        }
+
+        let mut buffer = vec![0; written];
+        let status = tknw_download_last_error(
+            download,
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+            &raw mut written,
+        );
+        if status != TknwStatus::Ok {
+            return String::new();
+        }
+        let len = buffer
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(buffer.len());
+        String::from_utf8_lossy(&buffer[..len]).into_owned()
+    }
+
+    const fn download_mut(handle: jlong) -> *mut TknwDownload {
+        handle as *mut TknwDownload
+    }
+
+    const fn download_const(handle: jlong) -> *const TknwDownload {
+        handle as *const TknwDownload
+    }
+
+    fn snapshot_values(snapshot: &TknwDownloadSnapshot) -> Result<[jlong; 7], TknwStatus> {
+        Ok([
+            jlong::from(snapshot.phase),
+            jlong::try_from(snapshot.content_len).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.downloaded_bytes).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.chunk_size).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.chunk_count).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.completed_chunks).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.active_io).map_err(|_| TknwStatus::Internal)?,
+        ])
+    }
+
+    const fn status_code(status: TknwStatus) -> jint {
+        status as jint
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;

@@ -14,5 +14,6 @@ cargo ndk \
   -t armeabi-v7a \
   -t x86_64 \
   -t x86 \
+  --platform 23 \
   -o target/android/jniLibs \
-  build -p takanawa-ffi --release
+  build -p takanawa-ffi --release --locked --features jni

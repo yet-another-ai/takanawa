@@ -1256,6 +1256,7 @@ dependencies = [
 name = "takanawa-ffi"
 version = "0.1.0"
 dependencies = [
+ "jni",
  "takanawa-core",
  "takanawa-http",
  "tempfile",

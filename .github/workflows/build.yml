@@ -37,22 +37,30 @@ jobs:
       - run: cargo build -p takanawa-ffi --release --locked --target ${{ matrix.target }}
 
   android:
-    name: Android release build
+    name: Android AAR release build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27c
+          ndk-version: r28c
       - uses: Swatinem/rust-cache@v2
-      - run: mise run package:android
+      - uses: gradle/actions/setup-gradle@v4
+      - run: mise run package:android-aar
       - uses: actions/upload-artifact@v4
         with:
-          name: takanawa-android-jniLibs
-          path: target/android/jniLibs
+          name: takanawa-android-aar
+          path: android/takanawa-android/build/outputs/aar/takanawa-android-release.aar
 
   apple:
     name: Apple XCFramework build
