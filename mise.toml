@@ -13,6 +13,10 @@ run = "bash -lc 'set -euo pipefail; cargo check --workspace --all-features --loc
 sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 outputs = ["target/debug/.cargo-check-stamp"]
 
+[tasks."rust:components"]
+description = "Install Rust components required by CI lint tasks"
+run = "rustup component add rustfmt clippy"
+
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
 depends = ["check"]
@@ -21,11 +25,13 @@ sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 
 [tasks.fmt]
 description = "Check Rust formatting"
+depends = ["rust:components"]
 run = "cargo fmt --all -- --check"
 sources = ["crates/**/*.rs"]
 
 [tasks.clippy]
 description = "Run clippy across the full workspace"
+depends = ["rust:components"]
 run = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::must_use_candidate"
 sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 
