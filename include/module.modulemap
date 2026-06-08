@@ -1,4 +1,4 @@
-module Takanawa {
+module TakanawaBinary {
   header "takanawa.h"
 
   export *

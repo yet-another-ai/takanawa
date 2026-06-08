@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-ZIP_PATH="${TAKANAWA_XCFRAMEWORK_ZIP:-target/cocoapods/Takanawa.xcframework.zip}"
+ZIP_PATH="${TAKANAWA_XCFRAMEWORK_ZIP:-target/swiftpm/Takanawa.xcframework.zip}"
 XCFRAMEWORK_PATH="${TAKANAWA_XCFRAMEWORK_PATH:-target/apple/Takanawa.xcframework}"
 FIXTURE_DIR="fixtures/swift-integration"
 WORK_DIR="target/swift-integration"
@@ -18,7 +18,7 @@ if [[ -f "$ZIP_PATH" ]]; then
 elif [[ -d "$XCFRAMEWORK_PATH" ]]; then
   cp -R "$XCFRAMEWORK_PATH" "$PACKAGE_DIR/Takanawa.xcframework"
 else
-  echo "missing CocoaPods zip or XCFramework; run mise run package:apple first" >&2
+  echo "missing SwiftPM zip or XCFramework; run mise run package:apple first" >&2
   exit 1
 fi
 

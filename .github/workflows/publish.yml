@@ -238,19 +238,20 @@ jobs:
           tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
 
           mise run package:apple
+          mise run swiftpm:check-checksum
           mise run test:swift-integration
-          cp target/cocoapods/Takanawa.xcframework.zip target/dist/
-          cp target/cocoapods/Takanawa.xcframework.zip.sha256 target/dist/
+          cp target/swiftpm/Takanawa.xcframework.zip target/dist/
+          cp target/swiftpm/Takanawa.xcframework.zip.checksum target/dist/
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-macos-universal
           path: target/dist/takanawa-macos-universal.tar.gz
       - uses: actions/upload-artifact@v4
         with:
-          name: Takanawa.xcframework-cocoapods
+          name: Takanawa.xcframework-swiftpm
           path: |
             target/dist/Takanawa.xcframework.zip
-            target/dist/Takanawa.xcframework.zip.sha256
+            target/dist/Takanawa.xcframework.zip.checksum
 
   artifact-android:
     name: Build Android release artifact

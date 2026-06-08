@@ -67,5 +67,7 @@ jobs:
       - run: mise run test:swift-integration
       - uses: actions/upload-artifact@v4
         with:
-          name: Takanawa.xcframework
-          path: target/apple/Takanawa.xcframework
+          name: Takanawa.xcframework-swiftpm
+          path: |
+            target/swiftpm/Takanawa.xcframework.zip
+            target/swiftpm/Takanawa.xcframework.zip.checksum

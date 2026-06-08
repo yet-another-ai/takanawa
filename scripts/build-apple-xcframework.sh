@@ -43,4 +43,4 @@ xcodebuild -create-xcframework \
   -library target/apple/ios-simulator/libtakanawa_ffi.a -headers include \
   -output target/apple/Takanawa.xcframework
 
-bash scripts/package-cocoapods.sh
+bash scripts/package-swiftpm.sh

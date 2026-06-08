@@ -3,7 +3,6 @@ lockfile = true
 
 [tools]
 rust = { version = "latest", components = "rustfmt,clippy" }
-ruby = { version = "latest" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
 
@@ -55,33 +54,35 @@ sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock",
 outputs = ["target/android/jniLibs"]
 
 [tasks."package:apple"]
-description = "Build the Apple XCFramework and CocoaPods release zip"
+description = "Build the Apple XCFramework and SwiftPM binary artifact"
 depends = ["header"]
 run = "bash scripts/build-apple-xcframework.sh"
 sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h", "include/module.modulemap"]
-outputs = ["target/apple/Takanawa.xcframework", "target/cocoapods/Takanawa.xcframework.zip", "target/cocoapods/Takanawa.xcframework.zip.sha256"]
+outputs = ["target/apple/Takanawa.xcframework", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
-[tasks."package:cocoapods"]
-description = "Alias for the CocoaPods release zip produced by package:apple"
+[tasks."package:swiftpm"]
+description = "Alias for the SwiftPM binary artifact produced by package:apple"
 depends = ["package:apple"]
-
-[tasks."lint:cocoapods"]
-description = "Lint the CocoaPods podspec against the locally packaged XCFramework"
-depends = ["package:cocoapods"]
-run = "bash -lc 'TAKANAWA_XCFRAMEWORK_URL=\"file://$(pwd)/target/cocoapods/Takanawa.xcframework.zip\" TAKANAWA_XCFRAMEWORK_SHA256=\"$(cat target/cocoapods/Takanawa.xcframework.zip.sha256)\" bundle exec pod spec lint Takanawa.podspec --verbose --allow-warnings'"
-sources = ["Takanawa.podspec", "target/cocoapods/Takanawa.xcframework.zip", "target/cocoapods/Takanawa.xcframework.zip.sha256"]
 
 [tasks."test:swift-integration"]
 description = "Build and run a SwiftPM smoke test against the packaged XCFramework"
-depends = ["package:cocoapods"]
+depends = ["package:swiftpm"]
 run = "bash scripts/test-swift-integration.sh"
-sources = ["fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/cocoapods/Takanawa.xcframework.zip", "target/cocoapods/Takanawa.xcframework.zip.sha256"]
+sources = ["fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
-[tasks."publish:cocoapods"]
-description = "Publish the CocoaPods podspec to the trunk registry"
-depends = ["lint:cocoapods"]
-run = "bundle exec pod trunk push Takanawa.podspec --verbose --allow-warnings"
+[tasks."swiftpm:update-checksum"]
+description = "Update Package.swift with the generated SwiftPM binary artifact checksum"
+depends = ["package:swiftpm"]
+run = "bash scripts/update-swiftpm-checksum.sh"
+sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
+outputs = ["Package.swift"]
+
+[tasks."swiftpm:check-checksum"]
+description = "Check Package.swift matches the generated SwiftPM binary artifact checksum"
+depends = ["package:swiftpm"]
+run = "bash scripts/check-swiftpm-checksum.sh"
+sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
 [tasks.package]
 description = "Build all distributable platform artifacts"
-depends = ["package:android", "package:cocoapods"]
+depends = ["package:android", "package:swiftpm"]

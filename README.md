@@ -15,22 +15,21 @@ downloads can resume automatically.
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform certificate roots are reserved for a future feature flag.
 
-## CocoaPods
+## SwiftPM
 
-The CocoaPods package is distributed as a prebuilt `Takanawa.xcframework`.
+The SwiftPM package is distributed as a prebuilt `Takanawa.xcframework`.
 The current Apple deployment targets are iOS 13.0, iOS Simulator 13.0, and
 macOS 10.15.
 The static XCFramework links against Apple's CoreFoundation and Security
 frameworks, plus libiconv.
 
 ```bash
-bundle install
-mise run package:cocoapods
+mise run package:swiftpm
+mise run swiftpm:update-checksum
 mise run test:swift-integration
-mise run lint:cocoapods
 ```
 
 Publishing expects `Takanawa.xcframework.zip` to be uploaded to the matching
-GitHub release tag, for example `v0.1.0`. The podspec reads
-`TAKANAWA_XCFRAMEWORK_URL` and `TAKANAWA_XCFRAMEWORK_SHA256` for local linting;
-without those variables it points at the GitHub release asset.
+GitHub release tag, for example `v0.1.0`. Update the checksum in `Package.swift`
+with the value from `target/swiftpm/Takanawa.xcframework.zip.checksum` before
+tagging a release.
