@@ -3,6 +3,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+export IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}"
+export IPHONESIMULATOR_DEPLOYMENT_TARGET="${IPHONESIMULATOR_DEPLOYMENT_TARGET:-13.0}"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+
 rustup target add \
   aarch64-apple-darwin \
   x86_64-apple-darwin \

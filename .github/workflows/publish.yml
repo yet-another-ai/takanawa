@@ -224,6 +224,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export MACOSX_DEPLOYMENT_TARGET=10.15
           mise run header
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
           cargo build -p takanawa-ffi --release --locked --target aarch64-apple-darwin
