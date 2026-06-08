@@ -1,6 +1,6 @@
 package ai.yetanother.takanawa
 
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 
 class TakanawaStatusTest {
