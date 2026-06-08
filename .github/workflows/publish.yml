@@ -328,12 +328,14 @@ jobs:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_IN_MEMORY_KEY: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          SIGNING_IN_MEMORY_KEY_PASSWORD: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           missing=()
           [[ -n "${MAVEN_CENTRAL_USERNAME:-}" ]] || missing+=("MAVEN_CENTRAL_USERNAME")
           [[ -n "${MAVEN_CENTRAL_PASSWORD:-}" ]] || missing+=("MAVEN_CENTRAL_PASSWORD")
           [[ -n "${SIGNING_IN_MEMORY_KEY:-}" ]] || missing+=("SIGNING_IN_MEMORY_KEY")
+          [[ -n "${SIGNING_IN_MEMORY_KEY_PASSWORD:-}" ]] || missing+=("SIGNING_IN_MEMORY_KEY_PASSWORD")
           if [[ "${#missing[@]}" -gt 0 ]]; then
             echo "::error title=Missing Maven Central secrets::${missing[*]}"
             exit 1
@@ -346,7 +348,6 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishAndReleaseToMavenCentral
