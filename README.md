@@ -80,11 +80,11 @@ frameworks, plus libiconv.
 
 ```bash
 mise run package:swiftpm
-mise run swiftpm:update-checksum
 mise run test:swift-integration
+mise run swiftpm:release-manifest
 ```
 
-Publishing expects `Takanawa.xcframework.zip` to be uploaded to the matching
-GitHub release tag, for example `v0.1.1`. Update the checksum in `Package.swift`
-with the value from `target/swiftpm/Takanawa.xcframework.zip.checksum` before
-tagging a release.
+The checked-in `Package.swift` uses the local `target/apple/Takanawa.xcframework`
+path so development and CI do not need to precompute a future release checksum.
+Release builds generate `target/swiftpm/Package.swift` with the checksum for the
+uploaded `Takanawa.xcframework.zip`.

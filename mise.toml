@@ -89,23 +89,12 @@ depends = ["package:swiftpm"]
 run = "bash scripts/test-swift-integration.sh"
 sources = ["fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
-[tasks."swiftpm:update-checksum"]
-description = "Update Package.swift with the generated SwiftPM binary artifact checksum"
+[tasks."swiftpm:release-manifest"]
+description = "Generate the SwiftPM release manifest with the packaged artifact checksum"
 depends = ["package:swiftpm"]
-run = "bash scripts/update-swiftpm-checksum.sh"
+run = "bash scripts/generate-swiftpm-release-manifest.sh"
 sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
-outputs = ["Package.swift"]
-
-[tasks."swiftpm:check-checksum"]
-description = "Check Package.swift matches the generated SwiftPM binary artifact checksum"
-depends = ["package:swiftpm"]
-run = "bash scripts/check-swiftpm-checksum.sh"
-sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
-
-[tasks."swiftpm:check-release-manifest"]
-description = "Check Package.swift is ready before tagging a SwiftPM release"
-run = "bash scripts/check-swiftpm-release-manifest.sh"
-sources = ["Package.swift"]
+outputs = ["target/swiftpm/Package.swift"]
 
 [tasks.package]
 description = "Build all distributable platform artifacts"

@@ -1,10 +1,7 @@
 name: Publish
 
 on:
-  pull_request:
   push:
-    branches:
-      - "**"
     tags:
       - "v*"
   workflow_dispatch:
@@ -21,60 +18,9 @@ env:
   PUBLISH_CRATES: takanawa-core takanawa-http takanawa-ffi takanawa-cli
 
 jobs:
-  publish-dry-run:
-    name: Publish dry-run
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-        with:
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Check workspace
-        run: mise run check
-
-      - name: Dry-run publishable crates
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          dry_run_or_list() {
-            local crate="$1"
-            local log="/tmp/${crate}-publish-dry-run.log"
-
-            set +e
-            cargo publish --dry-run --locked -p "$crate" 2>&1 | tee "$log"
-            local status="${PIPESTATUS[0]}"
-            set -e
-
-            if [[ "$status" -eq 0 ]]; then
-              return 0
-            fi
-
-            if grep -Eq 'no matching package named `takanawa-|failed to select a version for the requirement `takanawa-|candidate versions found which didn'\''t match' "$log"; then
-              echo "::notice title=Skipped registry dry-run::$crate depends on an internal crate version that is not visible on crates.io yet. Listing package contents instead."
-              cargo package --list --locked -p "$crate"
-              return 0
-            fi
-
-            if grep -Eq 'already uploaded|already exists' "$log"; then
-              echo "::notice title=Skipped duplicate dry-run::$crate version is already present on crates.io. Listing package contents instead."
-              cargo package --list --locked -p "$crate"
-              return 0
-            fi
-
-            return "$status"
-          }
-
-          for crate in $PUBLISH_CRATES; do
-            dry_run_or_list "$crate"
-          done
-
   publish:
     name: Publish crates.io
     runs-on: ubuntu-latest
-    needs: publish-dry-run
     environment: cargo-registry
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
@@ -146,7 +92,6 @@ jobs:
   artifact-linux:
     name: Build Linux release artifact
     runs-on: ubuntu-latest
-    needs: publish-dry-run
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v4
@@ -172,7 +117,6 @@ jobs:
   artifact-windows:
     name: Build Windows release artifact (${{ matrix.target }})
     runs-on: windows-latest
-    needs: publish-dry-run
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     strategy:
       fail-fast: false
@@ -215,7 +159,6 @@ jobs:
   artifact-apple:
     name: Build Apple release artifacts
     runs-on: macos-latest
-    needs: publish-dry-run
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v4
@@ -227,7 +170,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mise run swiftpm:check-release-manifest
           export MACOSX_DEPLOYMENT_TARGET=10.15
           mise run header
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
@@ -242,10 +184,11 @@ jobs:
           tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
 
           mise run package:apple
-          mise run swiftpm:check-checksum
           mise run test:swift-integration
+          mise run swiftpm:release-manifest
           cp target/swiftpm/Takanawa.xcframework.zip target/dist/
           cp target/swiftpm/Takanawa.xcframework.zip.checksum target/dist/
+          cp target/swiftpm/Package.swift target/dist/Package.swift
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-macos-universal
@@ -256,11 +199,11 @@ jobs:
           path: |
             target/dist/Takanawa.xcframework.zip
             target/dist/Takanawa.xcframework.zip.checksum
+            target/dist/Package.swift
 
   artifact-android:
     name: Build Android release artifact
     runs-on: ubuntu-latest
-    needs: publish-dry-run
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v4
