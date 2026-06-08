@@ -12,15 +12,17 @@ categories = ["asynchronous", "network-programming"]
 
 [features]
 default = ["tls-rustls"]
-tls-rustls = ["reqwest/rustls-tls-webpki-roots"]
+tls-rustls = ["reqwest/rustls", "dep:rustls", "dep:webpki-roots"]
 tls-platform-roots = []
 
 [dependencies]
 bytes.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true
+rustls = { workspace = true, optional = true }
 takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
 tokio.workspace = true
+webpki-roots = { workspace = true, optional = true }
 
 [dev-dependencies]
 sha2.workspace = true

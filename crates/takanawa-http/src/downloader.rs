@@ -48,7 +48,7 @@ pub struct DownloadEngine {
 
 impl DownloadEngine {
     pub fn new(max_io: usize) -> Result<Self> {
-        let client = Client::builder()
+        let client = client_builder()
             .user_agent("takanawa/0.1")
             .connect_timeout(Duration::from_secs(30))
             .build()
@@ -73,6 +73,22 @@ impl DownloadEngine {
     fn default_parallelism(&self) -> usize {
         self.max_io().clamp(1, 4)
     }
+}
+
+fn client_builder() -> reqwest::ClientBuilder {
+    let builder = Client::builder();
+    #[cfg(feature = "tls-rustls")]
+    {
+        let roots = rustls::RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        };
+        let tls_config = rustls::ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        return builder.tls_backend_preconfigured(tls_config);
+    }
+    #[allow(unreachable_code)]
+    builder
 }
 
 #[derive(Debug)]
