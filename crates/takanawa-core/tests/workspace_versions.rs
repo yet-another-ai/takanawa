@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 
@@ -64,4 +65,62 @@ fn workspace_packages_share_one_version() {
         1,
         "workspace package versions must match exactly: {versions:#?}"
     );
+}
+
+#[test]
+fn published_version_references_match_workspace_version() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("takanawa-core lives under crates/takanawa-core");
+    let cargo_toml = fs::read_to_string(workspace_root.join("Cargo.toml"))
+        .expect("workspace Cargo.toml should be readable");
+    let workspace_version =
+        workspace_package_version(&cargo_toml).expect("workspace package version should exist");
+
+    let version_literals = [
+        ("README.md", "takanawa-android"),
+        ("Cargo.toml", "takanawa-core"),
+        ("Cargo.toml", "takanawa-http"),
+    ];
+
+    for (relative_path, nearby_text) in version_literals {
+        let contents = fs::read_to_string(workspace_root.join(relative_path))
+            .unwrap_or_else(|error| panic!("{relative_path} should be readable: {error}"));
+        assert!(
+            contents.contains(&format!("{nearby_text}:{workspace_version}"))
+                || contents.contains(&format!(
+                    "{nearby_text} = {{ version = \"{workspace_version}\""
+                )),
+            "{relative_path} must use workspace package version {workspace_version} near {nearby_text}"
+        );
+    }
+
+    let generated_version_files = [
+        "android/takanawa-android/build.gradle.kts",
+        "fixtures/android-maven-local-smoke/build.gradle.kts",
+        "gradle.properties",
+    ];
+    for relative_path in generated_version_files {
+        let contents = fs::read_to_string(workspace_root.join(relative_path))
+            .unwrap_or_else(|error| panic!("{relative_path} should be readable: {error}"));
+        assert!(
+            !contents.contains(&format!("\"{workspace_version}\""))
+                && !contents.contains(&format!("={workspace_version}")),
+            "{relative_path} should derive the release version from Cargo.toml"
+        );
+    }
+}
+
+fn workspace_package_version(cargo_toml: &str) -> Option<String> {
+    let mut in_workspace_package = false;
+    for raw_line in cargo_toml.lines() {
+        let line = raw_line.trim();
+        if line.starts_with('[') && line.ends_with(']') {
+            in_workspace_package = line == "[workspace.package]";
+        } else if in_workspace_package && line.starts_with("version") {
+            return line.split('"').nth(1).map(str::to_owned);
+        }
+    }
+    None
 }

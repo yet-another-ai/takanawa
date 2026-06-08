@@ -5,9 +5,6 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-group = "ai.yetanother"
-version = "0.1.2"
-
 android {
     namespace = "ai.yetanother.takanawa"
     compileSdk = 36
@@ -123,7 +120,7 @@ tasks.register("verifyMavenLocalPublication") {
 }
 
 mavenPublishing {
-    coordinates("ai.yetanother", "takanawa-android", "0.1.2")
+    coordinates(project.group.toString(), "takanawa-android", project.version.toString())
     publishToMavenCentral()
 
     if (providers.gradleProperty("signingInMemoryKey").isPresent) {
