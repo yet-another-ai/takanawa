@@ -2,7 +2,7 @@
 lockfile = true
 
 [tools]
-rust = "latest"
+rust = { version = "latest", components = "rustfmt,clippy" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
 
