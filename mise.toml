@@ -102,6 +102,11 @@ depends = ["package:swiftpm"]
 run = "bash scripts/check-swiftpm-checksum.sh"
 sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
+[tasks."swiftpm:check-release-manifest"]
+description = "Check Package.swift is ready before tagging a SwiftPM release"
+run = "bash scripts/check-swiftpm-release-manifest.sh"
+sources = ["Package.swift"]
+
 [tasks.package]
 description = "Build all distributable platform artifacts"
 depends = ["package:android-aar", "package:swiftpm"]

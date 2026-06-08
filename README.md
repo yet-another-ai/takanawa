@@ -22,7 +22,7 @@ The Android SDK is published as:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.1.0")
+    implementation("ai.yetanother:takanawa-android:0.1.1")
 }
 ```
 
@@ -85,6 +85,6 @@ mise run test:swift-integration
 ```
 
 Publishing expects `Takanawa.xcframework.zip` to be uploaded to the matching
-GitHub release tag, for example `v0.1.0`. Update the checksum in `Package.swift`
+GitHub release tag, for example `v0.1.1`. Update the checksum in `Package.swift`
 with the value from `target/swiftpm/Takanawa.xcframework.zip.checksum` before
 tagging a release.

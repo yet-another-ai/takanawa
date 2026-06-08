@@ -16,8 +16,8 @@ path = "src/main.rs"
 
 [dependencies]
 hex.workspace = true
-takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
-takanawa-http = { version = "0.1.0", path = "../takanawa-http" }
+takanawa-core = { version = "0.1.1", path = "../takanawa-core" }
+takanawa-http = { version = "0.1.1", path = "../takanawa-http" }
 tokio.workspace = true
 
 [lints]

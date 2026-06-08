@@ -97,13 +97,15 @@ jobs:
           fi
 
           crate_version() {
-            cargo pkgid -p "$1" | sed 's/.*@//'
+            cargo metadata --no-deps --format-version 1 \
+              | jq -er --arg crate "$1" '.packages[] | select(.name == $crate) | .version'
           }
 
           crate_version_exists() {
             local crate="$1"
             local version="$2"
-            curl -fsS "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null
+            curl -fsS -H "User-Agent: takanawa-ci" \
+              "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null
           }
 
           wait_for_version() {
@@ -225,6 +227,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mise run swiftpm:check-release-manifest
           export MACOSX_DEPLOYMENT_TARGET=10.15
           mise run header
           rustup target add aarch64-apple-darwin x86_64-apple-darwin

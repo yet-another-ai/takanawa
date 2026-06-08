@@ -21,8 +21,8 @@ tls-platform-roots = ["takanawa-http/tls-platform-roots"]
 
 [dependencies]
 jni = { version = "0.21", optional = true }
-takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
-takanawa-http = { version = "0.1.0", path = "../takanawa-http", default-features = false }
+takanawa-core = { version = "0.1.1", path = "../takanawa-core" }
+takanawa-http = { version = "0.1.1", path = "../takanawa-http", default-features = false }
 tokio.workspace = true
 
 [dev-dependencies]
