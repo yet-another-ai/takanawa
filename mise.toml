@@ -69,7 +69,7 @@ outputs = ["android/takanawa-android/build/outputs/aar/takanawa-android-release.
 [tasks."publish:android-local"]
 description = "Publish the Android SDK to Maven local and build the local smoke app"
 depends = ["package:android"]
-run = "./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishToMavenLocal :takanawa-android:verifyMavenLocalPublication :android-maven-local-smoke:assembleDebug"
+run = "bash -lc './gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishToMavenLocal :takanawa-android:verifyMavenLocalPublication && ./gradlew :android-maven-local-smoke:assembleDebug'"
 sources = ["android/**/*.kt", "android/**/*.kts", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
 
 [tasks."package:apple"]

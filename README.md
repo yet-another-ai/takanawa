@@ -54,10 +54,20 @@ Publish to Maven local and build the smoke app against the local coordinates:
 mise run publish:android-local
 ```
 
-Maven Central releases use the Central Portal deployment created by:
+Maven Central releases are published from the `Publish` GitHub Actions workflow
+when a `v*` tag is pushed. Configure a GitHub Environment named
+`maven-central` with these secrets:
+
+- `MAVEN_CENTRAL_USERNAME`: Central Portal user token username.
+- `MAVEN_CENTRAL_PASSWORD`: Central Portal user token password.
+- `SIGNING_IN_MEMORY_KEY`: ASCII-armored private GPG key.
+- `SIGNING_IN_MEMORY_KEY_ID`: optional GPG key id.
+- `SIGNING_IN_MEMORY_KEY_PASSWORD`: optional GPG key password.
+
+The release job builds the Android native libraries and runs:
 
 ```sh
-./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishToMavenCentral
+./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishAndReleaseToMavenCentral
 ```
 
 ## SwiftPM
