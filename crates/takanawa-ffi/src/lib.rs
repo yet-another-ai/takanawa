@@ -790,8 +790,7 @@ mod android_jni {
         }
         let value = value
             .try_to_string(env)
-            .map_err(|_| TknwStatus::InvalidConfig)?
-            .to_string();
+            .map_err(|_| TknwStatus::InvalidConfig)?;
         CString::new(value).map_err(|_| TknwStatus::InvalidConfig)
     }
 
