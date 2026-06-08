@@ -1,0 +1,10 @@
+language = "C"
+pragma_once = true
+include_guard = "TAKANAWA_H"
+cpp_compat = true
+usize_is_size_t = true
+documentation = true
+
+[enum]
+rename_variants = "ScreamingSnakeCase"
+prefix_with_name = true

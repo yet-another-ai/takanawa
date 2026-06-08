@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "crates/takanawa-core",
+    "crates/takanawa-http",
+    "crates/takanawa-ffi",
+    "crates/takanawa-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yetanother.ai/takanawa"
+
+[workspace.dependencies]
+bytes = "1.8"
+crc32fast = "1.4"
+fs2 = "0.4"
+futures-util = "0.3"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["stream"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tempfile = "3.14"
+thiserror = "2.0"
+tokio = { version = "1.41", features = ["fs", "io-util", "macros", "rt-multi-thread", "sync", "time"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"

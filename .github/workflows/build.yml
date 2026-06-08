@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - run: mise run build:desktop
+
+  windows:
+    name: Windows release build (${{ matrix.target }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - i686-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup target add ${{ matrix.target }}
+      - run: mise run header
+      - run: cargo build -p takanawa-ffi --release --locked --target ${{ matrix.target }}
+
+  android:
+    name: Android release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+      - uses: Swatinem/rust-cache@v2
+      - run: mise run package:android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: takanawa-android-jniLibs
+          path: target/android/jniLibs
+
+  apple:
+    name: Apple XCFramework build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - run: mise run package:apple
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Takanawa.xcframework
+          path: target/apple/Takanawa.xcframework

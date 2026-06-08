@@ -1,0 +1,30 @@
+[package]
+name = "takanawa-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "C ABI dynamic and static library wrapper for Takanawa range downloads"
+readme = "../../README.md"
+keywords = ["download", "ffi", "range", "resume"]
+categories = ["api-bindings", "network-programming"]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[features]
+default = ["tls-rustls"]
+tls-rustls = ["takanawa-http/tls-rustls"]
+tls-platform-roots = ["takanawa-http/tls-platform-roots"]
+
+[dependencies]
+takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
+takanawa-http = { version = "0.1.0", path = "../takanawa-http", default-features = false }
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

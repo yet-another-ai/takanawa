@@ -1,0 +1,30 @@
+[package]
+name = "takanawa-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tokio and reqwest HTTP range downloader for Takanawa"
+readme = "../../README.md"
+keywords = ["download", "range", "resume", "http"]
+categories = ["asynchronous", "network-programming"]
+
+[features]
+default = ["tls-rustls"]
+tls-rustls = ["reqwest/rustls-tls-webpki-roots"]
+tls-platform-roots = []
+
+[dependencies]
+bytes.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
+tokio.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

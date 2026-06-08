@@ -1,0 +1,24 @@
+[package]
+name = "takanawa-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line downloader using the Takanawa resumable range download engine"
+readme = "../../README.md"
+keywords = ["download", "range", "resume", "cli"]
+categories = ["command-line-utilities", "network-programming"]
+
+[[bin]]
+name = "takanawa"
+path = "src/main.rs"
+
+[dependencies]
+hex.workspace = true
+takanawa-core = { version = "0.1.0", path = "../takanawa-core" }
+takanawa-http = { version = "0.1.0", path = "../takanawa-http" }
+tokio.workspace = true
+
+[lints]
+workspace = true
