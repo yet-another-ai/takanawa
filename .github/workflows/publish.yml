@@ -237,15 +237,18 @@ jobs:
           tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
 
           mise run package:apple
-          ditto -c -k --keepParent target/apple/Takanawa.xcframework target/dist/Takanawa.xcframework.zip
+          cp target/cocoapods/Takanawa.xcframework.zip target/dist/
+          cp target/cocoapods/Takanawa.xcframework.zip.sha256 target/dist/
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-macos-universal
           path: target/dist/takanawa-macos-universal.tar.gz
       - uses: actions/upload-artifact@v4
         with:
-          name: Takanawa.xcframework
-          path: target/dist/Takanawa.xcframework.zip
+          name: Takanawa.xcframework-cocoapods
+          path: |
+            target/dist/Takanawa.xcframework.zip
+            target/dist/Takanawa.xcframework.zip.sha256
 
   artifact-android:
     name: Build Android release artifact

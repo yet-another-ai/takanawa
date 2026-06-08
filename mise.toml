@@ -3,6 +3,7 @@ lockfile = true
 
 [tools]
 rust = { version = "latest", components = "rustfmt,clippy" }
+ruby = { version = "latest" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
 
@@ -48,12 +49,27 @@ sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock",
 outputs = ["target/android/jniLibs"]
 
 [tasks."package:apple"]
-description = "Build the Apple XCFramework for macOS, iOS, and iOS Simulator"
+description = "Build the Apple XCFramework and CocoaPods release zip"
 depends = ["header"]
 run = "bash scripts/build-apple-xcframework.sh"
-sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
-outputs = ["target/apple/Takanawa.xcframework"]
+sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h", "include/module.modulemap"]
+outputs = ["target/apple/Takanawa.xcframework", "target/cocoapods/Takanawa.xcframework.zip", "target/cocoapods/Takanawa.xcframework.zip.sha256"]
+
+[tasks."package:cocoapods"]
+description = "Alias for the CocoaPods release zip produced by package:apple"
+depends = ["package:apple"]
+
+[tasks."lint:cocoapods"]
+description = "Lint the CocoaPods podspec against the locally packaged XCFramework"
+depends = ["package:cocoapods"]
+run = "bash -lc 'TAKANAWA_XCFRAMEWORK_URL=\"file://$(pwd)/target/cocoapods/Takanawa.xcframework.zip\" TAKANAWA_XCFRAMEWORK_SHA256=\"$(cat target/cocoapods/Takanawa.xcframework.zip.sha256)\" bundle exec pod spec lint Takanawa.podspec --verbose --allow-warnings'"
+sources = ["Takanawa.podspec", "target/cocoapods/Takanawa.xcframework.zip", "target/cocoapods/Takanawa.xcframework.zip.sha256"]
+
+[tasks."publish:cocoapods"]
+description = "Publish the CocoaPods podspec to the trunk registry"
+depends = ["lint:cocoapods"]
+run = "bundle exec pod trunk push Takanawa.podspec --verbose --allow-warnings"
 
 [tasks.package]
 description = "Build all distributable platform artifacts"
-depends = ["package:android", "package:apple"]
+depends = ["package:android", "package:cocoapods"]

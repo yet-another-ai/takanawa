@@ -38,3 +38,5 @@ xcodebuild -create-xcframework \
   -library target/aarch64-apple-ios/release/libtakanawa_ffi.a -headers include \
   -library target/apple/ios-simulator/libtakanawa_ffi.a -headers include \
   -output target/apple/Takanawa.xcframework
+
+bash scripts/package-cocoapods.sh

@@ -14,3 +14,18 @@ downloads can resume automatically.
 
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform certificate roots are reserved for a future feature flag.
+
+## CocoaPods
+
+The CocoaPods package is distributed as a prebuilt `Takanawa.xcframework`.
+
+```bash
+bundle install
+mise run package:cocoapods
+mise run lint:cocoapods
+```
+
+Publishing expects `Takanawa.xcframework.zip` to be uploaded to the matching
+GitHub release tag, for example `v0.1.0`. The podspec reads
+`TAKANAWA_XCFRAMEWORK_URL` and `TAKANAWA_XCFRAMEWORK_SHA256` for local linting;
+without those variables it points at the GitHub release asset.
