@@ -29,6 +29,8 @@ Pod::Spec.new do |s|
   end
 
   s.vendored_frameworks = "Takanawa.xcframework"
+  s.frameworks = ["CoreFoundation", "Security"]
+  s.libraries = ["iconv"]
   s.static_framework = true
   s.requires_arc = true
 end

@@ -9,7 +9,16 @@ let package = Package(
   targets: [
     .executableTarget(
       name: "TakanawaSmoke",
-      dependencies: ["Takanawa"]
+      dependencies: ["TakanawaLinkage"]
+    ),
+    .target(
+      name: "TakanawaLinkage",
+      dependencies: ["Takanawa"],
+      linkerSettings: [
+        .linkedFramework("CoreFoundation"),
+        .linkedFramework("Security"),
+        .linkedLibrary("iconv")
+      ]
     ),
     .binaryTarget(
       name: "Takanawa",

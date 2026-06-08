@@ -20,6 +20,8 @@ feature. Platform certificate roots are reserved for a future feature flag.
 The CocoaPods package is distributed as a prebuilt `Takanawa.xcframework`.
 The current Apple deployment targets are iOS 13.0, iOS Simulator 13.0, and
 macOS 10.15.
+The static XCFramework links against Apple's CoreFoundation and Security
+frameworks, plus libiconv.
 
 ```bash
 bundle install
