@@ -17,7 +17,7 @@ use tokio::task::JoinSet;
 
 use crate::content_range::{parse_content_range, parse_unsatisfied_total};
 use crate::limiter::IoLimiter;
-use crate::state::{DownloadPhase, DownloadSnapshot, SharedState};
+use crate::state::{DownloadSnapshot, SharedState};
 
 const MAX_ATTEMPTS: usize = 5;
 
@@ -133,7 +133,7 @@ impl DownloadHandle {
         self.control.pause.store(false, Ordering::Relaxed);
         self.control.cancel.store(false, Ordering::Relaxed);
         self.state.clear_error();
-        self.state.set_phase(DownloadPhase::Running);
+        self.state.mark_running();
 
         let engine = self.engine.clone();
         let config = self.config.clone();
@@ -141,8 +141,9 @@ impl DownloadHandle {
         let control = Arc::clone(&self.control);
         *join = Some(runtime.spawn(async move {
             if let Err(err) = run_download(engine, config, state.clone(), control).await {
-                if !matches!(err, TakanawaError::Cancelled) {
-                    state.set_error(err.to_string());
+                match err {
+                    TakanawaError::Cancelled => state.mark_cancelled(),
+                    err => state.mark_failed(err.to_string()),
                 }
             }
         }));
@@ -151,12 +152,22 @@ impl DownloadHandle {
 
     pub fn pause(&self) -> Result<()> {
         self.control.pause.store(true, Ordering::Relaxed);
+        self.state.request_pause();
         Ok(())
     }
 
     pub fn cancel(&self) -> Result<()> {
         self.control.cancel.store(true, Ordering::Relaxed);
-        self.state.set_phase(DownloadPhase::Cancelled);
+        self.state.request_cancel();
+        if self
+            .join
+            .lock()
+            .expect("download join mutex poisoned")
+            .as_ref()
+            .is_none_or(tokio::task::JoinHandle::is_finished)
+        {
+            self.state.mark_cancelled();
+        }
         Ok(())
     }
 
@@ -201,7 +212,7 @@ async fn run_download(
     state: SharedState,
     control: Arc<Control>,
 ) -> Result<()> {
-    state.set_phase(DownloadPhase::Running);
+    state.mark_running();
     let remote = probe_with_retry(&engine, &config, &state, &control).await?;
     let chunk_plan = ChunkPlan::new(remote.content_len, config.chunk_size)?;
     let target_path = config.target_path.clone();
@@ -231,12 +242,12 @@ async fn run_download(
 
     loop {
         if control.cancel.load(Ordering::Relaxed) {
-            state.set_phase(DownloadPhase::Cancelled);
+            state.mark_cancelled();
             return Err(TakanawaError::Cancelled);
         }
         if control.pause.load(Ordering::Relaxed) {
             tasks.abort_all();
-            state.set_phase(DownloadPhase::Paused);
+            state.mark_paused();
             return Ok(());
         }
 
@@ -268,7 +279,7 @@ async fn run_download(
         };
         if control.pause.load(Ordering::Relaxed) {
             tasks.abort_all();
-            state.set_phase(DownloadPhase::Paused);
+            state.mark_paused();
             return Ok(());
         }
         let (index, data) =
@@ -282,13 +293,13 @@ async fn run_download(
         state.update_from_metadata(part.metadata());
 
         if control.pause.load(Ordering::Relaxed) && tasks.is_empty() {
-            state.set_phase(DownloadPhase::Paused);
+            state.mark_paused();
             return Ok(());
         }
     }
 
     if control.pause.load(Ordering::Relaxed) && !part.metadata().all_complete() {
-        state.set_phase(DownloadPhase::Paused);
+        state.mark_paused();
         return Ok(());
     }
 
@@ -300,7 +311,7 @@ async fn finalize_part(part: PartFile, config: &DownloadConfig, state: &SharedSt
     tokio::task::spawn_blocking(move || part.finalize(&target_path))
         .await
         .map_err(|err| TakanawaError::Ffi(format!("finalize task failed: {err}")))??;
-    state.set_phase(DownloadPhase::Completed);
+    state.mark_completed();
     Ok(())
 }
 
@@ -573,6 +584,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::DownloadPhase;
     use crate::limiter::DEFAULT_MAX_IO;
 
     #[tokio::test]
