@@ -247,7 +247,7 @@ async fn run_download(
         }
         if control.pause.load(Ordering::Relaxed) {
             tasks.abort_all();
-            state.set_phase(DownloadPhase::Paused);
+            state.mark_paused();
             return Ok(());
         }
 
@@ -279,7 +279,7 @@ async fn run_download(
         };
         if control.pause.load(Ordering::Relaxed) {
             tasks.abort_all();
-            state.set_phase(DownloadPhase::Paused);
+            state.mark_paused();
             return Ok(());
         }
         let (index, data) =
