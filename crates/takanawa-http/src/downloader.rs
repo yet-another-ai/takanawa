@@ -234,6 +234,11 @@ async fn run_download(
             state.set_phase(DownloadPhase::Cancelled);
             return Err(TakanawaError::Cancelled);
         }
+        if control.pause.load(Ordering::Relaxed) {
+            tasks.abort_all();
+            state.set_phase(DownloadPhase::Paused);
+            return Ok(());
+        }
 
         while !control.pause.load(Ordering::Relaxed)
             && !control.cancel.load(Ordering::Relaxed)
@@ -261,6 +266,11 @@ async fn run_download(
         let Some(result) = tasks.join_next().await else {
             break;
         };
+        if control.pause.load(Ordering::Relaxed) {
+            tasks.abort_all();
+            state.set_phase(DownloadPhase::Paused);
+            return Ok(());
+        }
         let (index, data) =
             result.map_err(|err| TakanawaError::Ffi(format!("download task failed: {err}")))??;
         part = tokio::task::spawn_blocking(move || {
@@ -557,6 +567,7 @@ mod tests {
     use std::net::{SocketAddr, TcpListener};
     use std::sync::Arc;
     use std::thread;
+    use std::time::Duration;
 
     use sha2::{Digest, Sha256};
     use tempfile::TempDir;
@@ -642,6 +653,35 @@ mod tests {
         assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
     }
 
+    #[test]
+    fn pause_discards_in_flight_chunk() {
+        let data = Arc::new(b"abcdefghij".to_vec());
+        let addr = spawn_delayed_chunk_server(Arc::clone(&data), Duration::from_millis(300));
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("out.bin");
+        let engine = DownloadEngine::new(DEFAULT_MAX_IO).unwrap();
+        let runtime = Runtime::new().unwrap();
+        let download = DownloadHandle::new(
+            engine,
+            DownloadConfig {
+                url: format!("http://{addr}/file"),
+                target_path: target,
+                chunk_size: 5,
+                parallelism: 1,
+                hash: HashConfig::None,
+            },
+        );
+
+        download.start_on(&runtime).unwrap();
+        thread::sleep(Duration::from_millis(100));
+        download.pause().unwrap();
+
+        let snapshot = wait_for_phase(&download, DownloadPhase::Paused);
+
+        assert_eq!(snapshot.completed_chunks, 0);
+        assert_eq!(snapshot.downloaded_bytes, 0);
+    }
+
     #[tokio::test]
     async fn rejects_existing_target() {
         let data = Arc::new(b"abcdef".to_vec());
@@ -685,18 +725,35 @@ mod tests {
     }
 
     fn spawn_range_server(data: Arc<Vec<u8>>, ignore_range: bool) -> SocketAddr {
+        spawn_range_server_with_chunk_delay(data, ignore_range, None)
+    }
+
+    fn spawn_delayed_chunk_server(data: Arc<Vec<u8>>, delay: Duration) -> SocketAddr {
+        spawn_range_server_with_chunk_delay(data, false, Some(delay))
+    }
+
+    fn spawn_range_server_with_chunk_delay(
+        data: Arc<Vec<u8>>,
+        ignore_range: bool,
+        chunk_delay: Option<Duration>,
+    ) -> SocketAddr {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 let data = Arc::clone(&data);
-                thread::spawn(move || handle_connection(stream, &data, ignore_range));
+                thread::spawn(move || handle_connection(stream, &data, ignore_range, chunk_delay));
             }
         });
         addr
     }
 
-    fn handle_connection(mut stream: std::net::TcpStream, data: &[u8], ignore_range: bool) {
+    fn handle_connection(
+        mut stream: std::net::TcpStream,
+        data: &[u8],
+        ignore_range: bool,
+        chunk_delay: Option<Duration>,
+    ) {
         let mut buffer = [0; 4096];
         let read = stream.read(&mut buffer).unwrap_or(0);
         let request = String::from_utf8_lossy(&buffer[..read]);
@@ -740,6 +797,11 @@ mod tests {
         }
         let end = end.min(data.len() - 1);
         let body = &data[start..=end];
+        if let Some(delay) = chunk_delay {
+            if !(start == 0 && end == 0) {
+                thread::sleep(delay);
+            }
+        }
         let response = format!(
             "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{end}/{}\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\n\r\n",
             data.len(),
@@ -747,5 +809,16 @@ mod tests {
         );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
+    }
+
+    fn wait_for_phase(download: &DownloadHandle, phase: DownloadPhase) -> DownloadSnapshot {
+        for _ in 0..50 {
+            let snapshot = download.snapshot();
+            if snapshot.phase == phase {
+                return snapshot;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        download.snapshot()
     }
 }
