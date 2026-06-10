@@ -159,12 +159,12 @@ impl DownloadHandle {
     pub fn cancel(&self) -> Result<()> {
         self.control.cancel.store(true, Ordering::Relaxed);
         self.state.request_cancel();
-        if !self
+        if self
             .join
             .lock()
             .expect("download join mutex poisoned")
             .as_ref()
-            .is_some_and(|handle| !handle.is_finished())
+            .is_none_or(tokio::task::JoinHandle::is_finished)
         {
             self.state.mark_cancelled();
         }
