@@ -23,6 +23,12 @@ The release version is defined in the root `Cargo.toml` under
 that value, and `crates/takanawa-core/tests/workspace_versions.rs` verifies that
 published version references stay in sync.
 
+After changing the workspace version, run:
+
+```sh
+mise run version:sync
+```
+
 ## Android
 
 The Android SDK is published as:

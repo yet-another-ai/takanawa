@@ -92,7 +92,7 @@ fn published_version_references_match_workspace_version() {
                 || contents.contains(&format!(
                     "{nearby_text} = {{ version = \"{workspace_version}\""
                 )),
-            "{relative_path} must use workspace package version {workspace_version} near {nearby_text}"
+            "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync` after changing the workspace version"
         );
     }
 
