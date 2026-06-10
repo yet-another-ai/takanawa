@@ -7,6 +7,8 @@ enum class DownloadPhase(val code: Int) {
     CANCELLED(3),
     COMPLETED(4),
     FAILED(5),
+    PAUSING(6),
+    CANCELLING(7),
     ;
 
     companion object {
