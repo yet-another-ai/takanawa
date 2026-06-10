@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-cli"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "hex",
  "takanawa-core",
@@ -1297,7 +1297,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-core"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "crc32fast",
  "fs2",
@@ -1309,7 +1309,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-ffi"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "jni 0.21.1",
  "takanawa-core",
@@ -1320,7 +1320,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-http"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "futures-util",
