@@ -32,5 +32,29 @@ class DownloadConfigTest {
                 parallelism = -1,
             )
         }
+
+        assertFailsWith<IllegalArgumentException> {
+            DownloadConfig(
+                url = "https://example.test/file.bin",
+                targetPath = "/tmp/file.bin",
+                maxParallelChunks = -1,
+            )
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            DownloadConfig(
+                url = "https://example.test/file.bin",
+                targetPath = "/tmp/file.bin",
+                maxRetries = -1,
+            )
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            DownloadConfig(
+                url = "https://example.test/file.bin",
+                targetPath = "/tmp/file.bin",
+                bytesPerSecondLimit = -1,
+            )
+        }
     }
 }

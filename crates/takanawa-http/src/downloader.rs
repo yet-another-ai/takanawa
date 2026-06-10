@@ -1,9 +1,11 @@
 use std::collections::VecDeque;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use futures_util::StreamExt;
 use reqwest::header::{
     ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, ETAG, HeaderMap,
     LAST_MODIFIED, RANGE,
@@ -19,7 +21,10 @@ use crate::content_range::{parse_content_range, parse_unsatisfied_total};
 use crate::limiter::IoLimiter;
 use crate::state::{DownloadSnapshot, SharedState};
 
-const MAX_ATTEMPTS: usize = 5;
+const DEFAULT_MAX_RETRIES: u32 = 4;
+const DEFAULT_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
+const DEFAULT_BACKOFF_MAX: Duration = Duration::from_secs(3);
+const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone)]
 pub struct DownloadConfig {
@@ -27,6 +32,10 @@ pub struct DownloadConfig {
     pub target_path: PathBuf,
     pub chunk_size: u64,
     pub parallelism: usize,
+    pub max_parallel_chunks: usize,
+    pub retry: RetryConfig,
+    pub timeout: TimeoutConfig,
+    pub bytes_per_second_limit: u64,
     pub hash: HashConfig,
 }
 
@@ -36,7 +45,74 @@ impl DownloadConfig {
         if self.chunk_size == 0 {
             self.chunk_size = DEFAULT_CHUNK_SIZE;
         }
+        self.retry = self.retry.normalized();
+        self.timeout = self.timeout.normalized();
         self
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub backoff_initial: Duration,
+    pub backoff_max: Duration,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: DEFAULT_MAX_RETRIES,
+            backoff_initial: DEFAULT_BACKOFF_INITIAL,
+            backoff_max: DEFAULT_BACKOFF_MAX,
+        }
+    }
+}
+
+impl RetryConfig {
+    #[must_use]
+    pub fn normalized(self) -> Self {
+        let default = Self::default();
+        let backoff_initial = if self.backoff_initial.is_zero() {
+            default.backoff_initial
+        } else {
+            self.backoff_initial
+        };
+        let backoff_max = if self.backoff_max.is_zero() {
+            default.backoff_max
+        } else {
+            self.backoff_max.max(backoff_initial)
+        };
+        Self {
+            max_retries: self.max_retries,
+            backoff_initial,
+            backoff_max,
+        }
+    }
+
+    fn max_attempts(self) -> u32 {
+        self.max_retries.saturating_add(1).max(1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TimeoutConfig {
+    pub connect: Duration,
+    pub read: Duration,
+    pub total: Duration,
+}
+
+impl TimeoutConfig {
+    #[must_use]
+    pub fn normalized(self) -> Self {
+        Self {
+            connect: if self.connect.is_zero() {
+                DEFAULT_CONNECT_TIMEOUT
+            } else {
+                self.connect
+            },
+            read: self.read,
+            total: self.total,
+        }
     }
 }
 
@@ -48,13 +124,7 @@ pub struct DownloadEngine {
 
 impl DownloadEngine {
     pub fn new(max_io: usize) -> Result<Self> {
-        let client = client_builder()
-            .user_agent("takanawa/0.1")
-            .connect_timeout(Duration::from_secs(30))
-            .build()
-            .map_err(|err| {
-                TakanawaError::InvalidConfig(format!("failed to build HTTP client: {err}"))
-            })?;
+        let client = build_client(TimeoutConfig::default().normalized())?;
         Ok(Self {
             client,
             limiter: IoLimiter::new(max_io.max(1)),
@@ -73,6 +143,13 @@ impl DownloadEngine {
     fn default_parallelism(&self) -> usize {
         self.max_io().clamp(1, 4)
     }
+
+    fn with_timeout(&self, timeout: TimeoutConfig) -> Result<Self> {
+        Ok(Self {
+            client: build_client(timeout)?,
+            limiter: self.limiter.clone(),
+        })
+    }
 }
 
 fn client_builder() -> reqwest::ClientBuilder {
@@ -89,6 +166,18 @@ fn client_builder() -> reqwest::ClientBuilder {
     }
     #[allow(unreachable_code)]
     builder
+}
+
+fn build_client(timeout: TimeoutConfig) -> Result<Client> {
+    let mut builder = client_builder()
+        .user_agent("takanawa/0.1")
+        .connect_timeout(timeout.connect);
+    if !timeout.read.is_zero() {
+        builder = builder.read_timeout(timeout.read);
+    }
+    builder
+        .build()
+        .map_err(|err| TakanawaError::InvalidConfig(format!("failed to build HTTP client: {err}")))
 }
 
 #[derive(Debug)]
@@ -212,6 +301,9 @@ async fn run_download(
     state: SharedState,
     control: Arc<Control>,
 ) -> Result<()> {
+    let config = config.normalized();
+    let engine = engine.with_timeout(config.timeout)?;
+    let bandwidth = Arc::new(BandwidthLimiter::new(config.bytes_per_second_limit));
     state.mark_running();
     let remote = probe_with_retry(&engine, &config, &state, &control).await?;
     let chunk_plan = ChunkPlan::new(remote.content_len, config.chunk_size)?;
@@ -233,10 +325,15 @@ async fn run_download(
     }
 
     let mut pending: VecDeque<u64> = part.incomplete_chunks().into();
-    let parallelism = if config.parallelism == 0 {
+    let requested_parallelism = if config.max_parallel_chunks == 0 {
+        config.parallelism
+    } else {
+        config.max_parallel_chunks
+    };
+    let parallelism = if requested_parallelism == 0 {
         engine.default_parallelism()
     } else {
-        config.parallelism.max(1)
+        requested_parallelism.max(1)
     };
     let mut tasks = JoinSet::new();
 
@@ -263,9 +360,11 @@ async fn run_download(
             let config = config.clone();
             let state = state.clone();
             let control = Arc::clone(&control);
+            let bandwidth = Arc::clone(&bandwidth);
             tasks.spawn(async move {
                 let data =
-                    fetch_chunk_with_retry(&engine, &config.url, chunk, &state, &control).await?;
+                    fetch_chunk_with_retry(&engine, &config, chunk, &state, &control, &bandwidth)
+                        .await?;
                 Ok::<_, TakanawaError>((index, data))
             });
         }
@@ -321,16 +420,18 @@ async fn probe_with_retry(
     state: &SharedState,
     control: &Control,
 ) -> Result<RemoteInfo> {
-    let mut delay = Duration::from_millis(100);
-    for attempt in 1..=MAX_ATTEMPTS {
+    let retry = config.retry.normalized();
+    let mut delay = retry.backoff_initial;
+    for attempt in 1..=retry.max_attempts() {
         if control.cancel.load(Ordering::Relaxed) {
             return Err(TakanawaError::Cancelled);
         }
-        match probe_once(engine, &config.url, state).await {
+        match with_total_timeout(config.timeout.total, probe_once(engine, &config.url, state)).await
+        {
             Ok(remote) => return Ok(remote),
-            Err(err) if err.is_retryable() && attempt < MAX_ATTEMPTS => {
+            Err(err) if err.is_retryable() && attempt < retry.max_attempts() => {
                 tokio::time::sleep(delay).await;
-                delay = (delay * 2).min(Duration::from_secs(3));
+                delay = (delay * 2).min(retry.backoff_max);
             }
             Err(err) => return Err(err),
         }
@@ -342,21 +443,28 @@ async fn probe_with_retry(
 
 async fn fetch_chunk_with_retry(
     engine: &DownloadEngine,
-    url: &str,
+    config: &DownloadConfig,
     chunk: Chunk,
     state: &SharedState,
     control: &Control,
+    bandwidth: &BandwidthLimiter,
 ) -> Result<Vec<u8>> {
-    let mut delay = Duration::from_millis(100);
-    for attempt in 1..=MAX_ATTEMPTS {
+    let retry = config.retry.normalized();
+    let mut delay = retry.backoff_initial;
+    for attempt in 1..=retry.max_attempts() {
         if control.cancel.load(Ordering::Relaxed) {
             return Err(TakanawaError::Cancelled);
         }
-        match fetch_chunk_once(engine, url, chunk, state).await {
+        match with_total_timeout(
+            config.timeout.total,
+            fetch_chunk_once(engine, &config.url, chunk, state, bandwidth),
+        )
+        .await
+        {
             Ok(data) => return Ok(data),
-            Err(err) if err.is_retryable() && attempt < MAX_ATTEMPTS => {
+            Err(err) if err.is_retryable() && attempt < retry.max_attempts() => {
                 tokio::time::sleep(delay).await;
-                delay = (delay * 2).min(Duration::from_secs(3));
+                delay = (delay * 2).min(retry.backoff_max);
             }
             Err(err) => return Err(err),
         }
@@ -433,6 +541,7 @@ async fn fetch_chunk_once(
     url: &str,
     chunk: Chunk,
     state: &SharedState,
+    bandwidth: &BandwidthLimiter,
 ) -> Result<Vec<u8>> {
     let _permit = engine.limiter.acquire().await;
     let _active_io = ActiveIoGuard::new(state.clone());
@@ -455,7 +564,7 @@ async fn fetch_chunk_once(
             chunk.index, chunk.len
         )));
     }
-    let body = response.bytes().await.map_err(map_reqwest_error)?;
+    let body = read_limited_body(response, chunk.len, bandwidth).await?;
     if body.len() != usize::try_from(chunk.len).unwrap_or(usize::MAX) {
         return Err(TakanawaError::HttpProtocol(format!(
             "chunk {} body length mismatch: expected {}, got {}",
@@ -464,7 +573,84 @@ async fn fetch_chunk_once(
             body.len()
         )));
     }
-    Ok(body.to_vec())
+    Ok(body)
+}
+
+async fn read_limited_body(
+    response: reqwest::Response,
+    expected_len: u64,
+    bandwidth: &BandwidthLimiter,
+) -> Result<Vec<u8>> {
+    let capacity = usize::try_from(expected_len).map_err(|_| {
+        TakanawaError::HttpProtocol(format!(
+            "body length {expected_len} does not fit in memory on this platform"
+        ))
+    })?;
+    let mut body = Vec::with_capacity(capacity);
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(map_reqwest_error)?;
+        bandwidth.throttle(chunk.len()).await;
+        body.extend_from_slice(&chunk);
+        if body.len() > capacity {
+            return Err(TakanawaError::HttpProtocol(format!(
+                "body length exceeded expected {expected_len} bytes"
+            )));
+        }
+    }
+    Ok(body)
+}
+
+async fn with_total_timeout<T>(
+    timeout: Duration,
+    future: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    if timeout.is_zero() {
+        return future.await;
+    }
+    tokio::time::timeout(timeout, future).await.map_err(|_| {
+        TakanawaError::Network(format!("request exceeded {} ms", timeout.as_millis()))
+    })?
+}
+
+#[derive(Debug)]
+struct BandwidthLimiter {
+    bytes_per_second: u64,
+    next_available: Mutex<Instant>,
+}
+
+impl BandwidthLimiter {
+    fn new(bytes_per_second: u64) -> Self {
+        Self {
+            bytes_per_second,
+            next_available: Mutex::new(Instant::now()),
+        }
+    }
+
+    async fn throttle(&self, bytes: usize) {
+        if self.bytes_per_second == 0 || bytes == 0 {
+            return;
+        }
+
+        let now = Instant::now();
+        let wait_until = {
+            let mut next_available = self
+                .next_available
+                .lock()
+                .expect("bandwidth limiter mutex poisoned");
+            let start = (*next_available).max(now);
+            let nanos = (bytes as u128)
+                .saturating_mul(1_000_000_000)
+                .div_ceil(self.bytes_per_second as u128);
+            let duration = Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX));
+            *next_available = start + duration;
+            start
+        };
+
+        if wait_until > now {
+            tokio::time::sleep_until(tokio::time::Instant::from_std(wait_until)).await;
+        }
+    }
 }
 
 fn validate_status(status: StatusCode) -> Result<()> {
@@ -599,6 +785,10 @@ mod tests {
             target_path: target.clone(),
             chunk_size: 5,
             parallelism: 2,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash: HashConfig::None,
         };
 
@@ -620,6 +810,10 @@ mod tests {
             target_path: target,
             chunk_size: 3,
             parallelism: 1,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash: HashConfig::None,
         };
 
@@ -656,6 +850,10 @@ mod tests {
             target_path: target.clone(),
             chunk_size: 5,
             parallelism: 2,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash: HashConfig::None,
         };
 
@@ -680,6 +878,10 @@ mod tests {
                 target_path: target,
                 chunk_size: 5,
                 parallelism: 1,
+                max_parallel_chunks: 0,
+                retry: RetryConfig::default(),
+                timeout: TimeoutConfig::default(),
+                bytes_per_second_limit: 0,
                 hash: HashConfig::None,
             },
         );
@@ -707,6 +909,10 @@ mod tests {
             target_path: target,
             chunk_size: 3,
             parallelism: 1,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash: HashConfig::None,
         };
 
@@ -728,12 +934,48 @@ mod tests {
             target_path: target.clone(),
             chunk_size: 3,
             parallelism: 1,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash: HashConfig::Sha256(expected),
         };
 
         download_to_completion(engine, config).await.unwrap();
 
         assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
+    }
+
+    #[tokio::test]
+    async fn total_timeout_aborts_slow_chunk() {
+        let data = Arc::new(b"abcdef".to_vec());
+        let addr = spawn_delayed_chunk_server(Arc::clone(&data), Duration::from_millis(300));
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("out.bin");
+        let engine = DownloadEngine::new(DEFAULT_MAX_IO).unwrap();
+        let config = DownloadConfig {
+            url: format!("http://{addr}/file"),
+            target_path: target,
+            chunk_size: 3,
+            parallelism: 1,
+            max_parallel_chunks: 0,
+            retry: RetryConfig {
+                max_retries: 0,
+                backoff_initial: Duration::from_millis(1),
+                backoff_max: Duration::from_millis(1),
+            },
+            timeout: TimeoutConfig {
+                connect: Duration::from_secs(30),
+                read: Duration::ZERO,
+                total: Duration::from_millis(50),
+            },
+            bytes_per_second_limit: 0,
+            hash: HashConfig::None,
+        };
+
+        let err = download_to_completion(engine, config).await.unwrap_err();
+
+        assert!(matches!(err, TakanawaError::Network(_)));
     }
 
     fn spawn_range_server(data: Arc<Vec<u8>>, ignore_range: bool) -> SocketAddr {
