@@ -20,7 +20,7 @@ bytes.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true
 rustls = { workspace = true, optional = true }
-takanawa-core = { version = "0.1.2", path = "../takanawa-core" }
+takanawa-core.workspace = true
 tokio.workspace = true
 webpki-roots = { workspace = true, optional = true }
 

@@ -16,6 +16,19 @@ downloads can resume automatically.
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform certificate roots are reserved for a future feature flag.
 
+## Versioning
+
+The release version is defined in the root `Cargo.toml` under
+`[workspace.package]`. Gradle projects derive their `group` and `version` from
+that value, and `crates/takanawa-core/tests/workspace_versions.rs` verifies that
+published version references stay in sync.
+
+After changing the workspace version, run:
+
+```sh
+mise run version:sync
+```
+
 ## Android
 
 The Android SDK is published as:

@@ -5,6 +5,22 @@ cpp_compat = true
 usize_is_size_t = true
 documentation = true
 
+[export]
+exclude = [
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadBitmapSize",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadCancel",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadCopyBitmap",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadCreate",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadLastError",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadPause",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadRelease",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadSnapshot",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadStart",
+  "Java_ai_yetanother_takanawa_NativeBridge_globalInit",
+  "Java_ai_yetanother_takanawa_NativeBridge_globalSetMaxIo",
+  "Java_ai_yetanother_takanawa_NativeBridge_globalShutdown",
+]
+
 [enum]
 rename_variants = "ScreamingSnakeCase"
 prefix_with_name = true

@@ -17,6 +17,11 @@ outputs = ["target/debug/.cargo-check-stamp"]
 description = "Install Rust components required by CI lint tasks"
 run = "rustup component add rustfmt clippy"
 
+[tasks."version:sync"]
+description = "Sync release-version references from Cargo.toml"
+run = "bash scripts/sync-version.sh"
+sources = ["Cargo.toml", "README.md"]
+
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
 depends = ["check"]
