@@ -132,6 +132,20 @@ impl PartMetadata {
                 self.content_len, remote.content_len
             )));
         }
+        if let (Some(stored), Some(current)) = (&self.etag, &remote.etag) {
+            if stored != current {
+                return Err(TakanawaError::RemoteChanged(format!(
+                    "ETag changed from {stored} to {current}"
+                )));
+            }
+        }
+        if let (Some(stored), Some(current)) = (&self.last_modified, &remote.last_modified) {
+            if stored != current {
+                return Err(TakanawaError::RemoteChanged(format!(
+                    "Last-Modified changed from {stored} to {current}"
+                )));
+            }
+        }
         if self.chunk_size != chunk_size {
             return Err(TakanawaError::RemoteChanged(format!(
                 "chunk size changed from {} to {chunk_size}",
@@ -473,5 +487,78 @@ mod tests {
         slot[last] ^= 1;
 
         assert!(PartMetadata::decode_slot(&slot).is_err());
+    }
+
+    #[test]
+    fn rejects_changed_remote_validators() {
+        let remote = RemoteInfo {
+            content_len: 10,
+            etag: Some("etag-a".to_owned()),
+            last_modified: Some("date-a".to_owned()),
+        };
+        let meta = PartMetadata::new(
+            hash_url("https://example.test/file"),
+            &remote,
+            4,
+            HashConfig::None,
+        )
+        .unwrap();
+
+        let changed_etag = RemoteInfo {
+            etag: Some("etag-b".to_owned()),
+            ..remote.clone()
+        };
+        assert!(matches!(
+            meta.ensure_compatible(
+                hash_url("https://example.test/file"),
+                &changed_etag,
+                4,
+                HashConfig::None,
+            ),
+            Err(TakanawaError::RemoteChanged(_))
+        ));
+
+        let changed_last_modified = RemoteInfo {
+            last_modified: Some("date-b".to_owned()),
+            ..remote.clone()
+        };
+        assert!(matches!(
+            meta.ensure_compatible(
+                hash_url("https://example.test/file"),
+                &changed_last_modified,
+                4,
+                HashConfig::None,
+            ),
+            Err(TakanawaError::RemoteChanged(_))
+        ));
+    }
+
+    #[test]
+    fn skips_missing_remote_validator_checks() {
+        let remote = RemoteInfo {
+            content_len: 10,
+            etag: Some("etag-a".to_owned()),
+            last_modified: Some("date-a".to_owned()),
+        };
+        let meta = PartMetadata::new(
+            hash_url("https://example.test/file"),
+            &remote,
+            4,
+            HashConfig::None,
+        )
+        .unwrap();
+        let missing_validators = RemoteInfo {
+            content_len: 10,
+            etag: None,
+            last_modified: None,
+        };
+
+        meta.ensure_compatible(
+            hash_url("https://example.test/file"),
+            &missing_validators,
+            4,
+            HashConfig::None,
+        )
+        .unwrap();
     }
 }
