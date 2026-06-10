@@ -3,6 +3,8 @@ lockfile = true
 
 [tools]
 java = "temurin-17"
+node = "lts"
+pnpm = "latest"
 rust = { version = "latest", components = "rustfmt,clippy" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
@@ -39,6 +41,21 @@ description = "Run clippy across the full workspace"
 depends = ["rust:components"]
 run = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::must_use_candidate"
 sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
+
+[tasks."docs:dev"]
+description = "Start the VitePress documentation dev server"
+run = "pnpm docs:dev"
+sources = ["docs/**/*.md", "docs/.vitepress/**/*", "package.json", "pnpm-lock.yaml"]
+
+[tasks."docs:build"]
+description = "Build the VitePress documentation site"
+run = "pnpm docs:build"
+sources = ["docs/**/*.md", "docs/.vitepress/**/*", "docs/public/**/*", "package.json", "pnpm-lock.yaml"]
+outputs = ["docs/.vitepress/dist"]
+
+[tasks."docs:preview"]
+description = "Preview the built VitePress documentation site"
+run = "pnpm docs:preview"
 
 [tasks."build:desktop"]
 description = "Build all workspace crates for the current desktop host"
