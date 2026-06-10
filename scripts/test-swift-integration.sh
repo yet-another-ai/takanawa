@@ -12,6 +12,8 @@ PACKAGE_DIR="$WORK_DIR/package"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 cp -R "$FIXTURE_DIR" "$PACKAGE_DIR"
+rm -rf "$PACKAGE_DIR/Sources/Takanawa"
+cp -R Sources/Takanawa "$PACKAGE_DIR/Sources/Takanawa"
 
 if [[ -f "$ZIP_PATH" ]]; then
   unzip -q "$ZIP_PATH" -d "$PACKAGE_DIR"

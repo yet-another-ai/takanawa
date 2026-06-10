@@ -1,1 +1,400 @@
+import Foundation
+
 @_exported import TakanawaBinary
+
+public enum Takanawa {
+  public static func initialize(maxIo: Int = 0) throws {
+    guard maxIo >= 0 else {
+      throw TakanawaError.invalidConfig("maxIo must be greater than or equal to 0")
+    }
+
+    var config = TknwGlobalConfig()
+    config.abi_version = UInt32(TKNW_ABI_VERSION)
+    config.struct_size = MemoryLayout<TknwGlobalConfig>.stride
+    config.max_io = maxIo
+
+    try TakanawaError.check(tknw_global_init(&config))
+  }
+
+  public static func setMaxIo(_ maxIo: Int) throws {
+    guard maxIo >= 0 else {
+      throw TakanawaError.invalidConfig("maxIo must be greater than or equal to 0")
+    }
+
+    try TakanawaError.check(tknw_global_set_max_io(maxIo))
+  }
+
+  public static func shutdown() throws {
+    try TakanawaError.check(tknw_global_shutdown())
+  }
+}
+
+public struct DownloadConfig: Sendable {
+  public var url: String
+  public var targetPath: String
+  public var chunkSize: UInt64
+  public var parallelism: Int
+  public var expectedSha256: Data?
+
+  public init(
+    url: String,
+    targetPath: String,
+    chunkSize: UInt64 = 0,
+    parallelism: Int = 0,
+    expectedSha256: Data? = nil
+  ) throws {
+    guard !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw TakanawaError.invalidConfig("url must not be blank")
+    }
+    guard !targetPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw TakanawaError.invalidConfig("targetPath must not be blank")
+    }
+    guard parallelism >= 0 else {
+      throw TakanawaError.invalidConfig("parallelism must be greater than or equal to 0")
+    }
+    if let expectedSha256, expectedSha256.count != 32 {
+      throw TakanawaError.invalidConfig("expectedSha256 must be exactly 32 bytes")
+    }
+
+    self.url = url
+    self.targetPath = targetPath
+    self.chunkSize = chunkSize
+    self.parallelism = parallelism
+    self.expectedSha256 = expectedSha256
+  }
+}
+
+public final class TakanawaDownload {
+  private var handle: OpaquePointer?
+
+  private init(handle: OpaquePointer) {
+    self.handle = handle
+  }
+
+  deinit {
+    releaseIgnoringErrors()
+  }
+
+  public static func create(_ config: DownloadConfig) throws -> TakanawaDownload {
+    var outDownload: OpaquePointer?
+    let status = config.url.withCString { urlPointer in
+      config.targetPath.withCString { targetPathPointer in
+        config.expectedSha256.withUnsafeNullableBytes { expectedSha256Pointer, expectedSha256Len in
+          var native = TknwDownloadConfig()
+          native.abi_version = UInt32(TKNW_ABI_VERSION)
+          native.struct_size = MemoryLayout<TknwDownloadConfig>.stride
+          native.url = urlPointer
+          native.target_path = targetPathPointer
+          native.chunk_size = config.chunkSize
+          native.parallelism = config.parallelism
+          native.hash_kind = config.expectedSha256 == nil ? 0 : 1
+          native.expected_sha256 = expectedSha256Pointer
+          native.expected_sha256_len = expectedSha256Len
+
+          return tknw_download_create(&native, &outDownload)
+        }
+      }
+    }
+
+    try TakanawaError.check(status)
+    guard let outDownload else {
+      throw TakanawaError.nullPointer("native download handle was not returned")
+    }
+    return TakanawaDownload(handle: outDownload)
+  }
+
+  public func start() throws {
+    let currentHandle = try openHandle()
+    try TakanawaError.check(tknw_download_start(currentHandle), handle: currentHandle)
+  }
+
+  public func pause() throws {
+    let currentHandle = try openHandle()
+    try TakanawaError.check(tknw_download_pause(currentHandle), handle: currentHandle)
+  }
+
+  public func cancel() throws {
+    let currentHandle = try openHandle()
+    try TakanawaError.check(tknw_download_cancel(currentHandle), handle: currentHandle)
+  }
+
+  public func snapshot() throws -> DownloadSnapshot {
+    let currentHandle = try openHandle()
+    var native = TknwDownloadSnapshot()
+    native.abi_version = UInt32(TKNW_ABI_VERSION)
+    native.struct_size = MemoryLayout<TknwDownloadSnapshot>.stride
+
+    try TakanawaError.check(tknw_download_snapshot(currentHandle, &native), handle: currentHandle)
+    return DownloadSnapshot(native)
+  }
+
+  public func copyBitmap() throws -> Data {
+    let currentHandle = try openHandle()
+    var written = 0
+    let sizeStatus = tknw_download_copy_bitmap(currentHandle, nil, 0, &written)
+    guard takanawaStatusCode(sizeStatus) == TakanawaError.bufferTooSmallCode || written == 0 else {
+      try TakanawaError.check(sizeStatus, handle: currentHandle)
+      return Data()
+    }
+    guard written > 0 else {
+      return Data()
+    }
+
+    var bitmap = Data(count: written)
+    let status = bitmap.withUnsafeMutableBytes { buffer in
+      tknw_download_copy_bitmap(
+        currentHandle,
+        buffer.bindMemory(to: UInt8.self).baseAddress,
+        buffer.count,
+        &written
+      )
+    }
+    try TakanawaError.check(status, handle: currentHandle)
+    return bitmap
+  }
+
+  public func lastError() throws -> String {
+    try lastErrorMessage(for: openHandle()) ?? ""
+  }
+
+  public func close() throws {
+    guard handle != nil else {
+      return
+    }
+    try TakanawaError.check(tknw_download_release(&handle))
+  }
+
+  private func openHandle() throws -> OpaquePointer {
+    guard let handle else {
+      throw TakanawaError.invalidConfig("download is closed")
+    }
+    return handle
+  }
+
+  private func releaseIgnoringErrors() {
+    guard handle != nil else {
+      return
+    }
+    _ = tknw_download_release(&handle)
+  }
+}
+
+public struct DownloadSnapshot: Sendable, Equatable {
+  public var phase: DownloadPhase
+  public var contentLen: UInt64
+  public var downloadedBytes: UInt64
+  public var chunkSize: UInt64
+  public var chunkCount: UInt64
+  public var completedChunks: UInt64
+  public var activeIo: Int
+
+  fileprivate init(_ native: TknwDownloadSnapshot) {
+    self.phase = DownloadPhase(rawValue: native.phase) ?? .failed
+    self.contentLen = native.content_len
+    self.downloadedBytes = native.downloaded_bytes
+    self.chunkSize = native.chunk_size
+    self.chunkCount = native.chunk_count
+    self.completedChunks = native.completed_chunks
+    self.activeIo = native.active_io
+  }
+}
+
+public enum DownloadPhase: UInt32, Sendable {
+  case created = 0
+  case running = 1
+  case paused = 2
+  case cancelled = 3
+  case completed = 4
+  case failed = 5
+}
+
+public enum TakanawaError: Error, Sendable, Equatable, CustomStringConvertible {
+  case bufferTooSmall(String? = nil)
+  case nullPointer(String? = nil)
+  case abiMismatch(String? = nil)
+  case invalidConfig(String? = nil)
+  case runtimeNotInitialized(String? = nil)
+  case targetExists(String? = nil)
+  case partBusy(String? = nil)
+  case partSizeMismatch(String? = nil)
+  case partCorrupt(String? = nil)
+  case remoteChanged(String? = nil)
+  case httpProtocol(String? = nil)
+  case network(String? = nil)
+  case io(String? = nil)
+  case hashMismatch(String? = nil)
+  case cancelled(String? = nil)
+  case alreadyStarted(String? = nil)
+  case panic(String? = nil)
+  case internalError(String? = nil)
+  case unknown(statusCode: Int32, message: String? = nil)
+
+  public var statusCode: Int32 {
+    switch self {
+    case .bufferTooSmall:
+      return Self.bufferTooSmallCode
+    case .nullPointer:
+      return -1
+    case .abiMismatch:
+      return -2
+    case .invalidConfig:
+      return -3
+    case .runtimeNotInitialized:
+      return -4
+    case .targetExists:
+      return -10
+    case .partBusy:
+      return -11
+    case .partSizeMismatch:
+      return -12
+    case .partCorrupt:
+      return -13
+    case .remoteChanged:
+      return -14
+    case .httpProtocol:
+      return -20
+    case .network:
+      return -21
+    case .io:
+      return -30
+    case .hashMismatch:
+      return -40
+    case .cancelled:
+      return -50
+    case .alreadyStarted:
+      return -51
+    case .panic:
+      return -100
+    case .internalError:
+      return -101
+    case let .unknown(statusCode, _):
+      return statusCode
+    }
+  }
+
+  public var message: String? {
+    switch self {
+    case let .bufferTooSmall(message),
+         let .nullPointer(message),
+         let .abiMismatch(message),
+         let .invalidConfig(message),
+         let .runtimeNotInitialized(message),
+         let .targetExists(message),
+         let .partBusy(message),
+         let .partSizeMismatch(message),
+         let .partCorrupt(message),
+         let .remoteChanged(message),
+         let .httpProtocol(message),
+         let .network(message),
+         let .io(message),
+         let .hashMismatch(message),
+         let .cancelled(message),
+         let .alreadyStarted(message),
+         let .panic(message),
+         let .internalError(message),
+         let .unknown(_, message):
+      return message
+    }
+  }
+
+  public var description: String {
+    if let message, !message.isEmpty {
+      return message
+    }
+    return String(describing: self).split(separator: "(").first.map(String.init) ?? "unknown"
+  }
+
+  fileprivate static let okCode: Int32 = 0
+  fileprivate static let bufferTooSmallCode: Int32 = 1
+
+  fileprivate static func check<Status>(_ status: Status, handle: OpaquePointer? = nil) throws {
+    let code = takanawaStatusCode(status)
+    guard code != okCode else {
+      return
+    }
+    throw from(statusCode: code, message: lastErrorMessage(for: handle))
+  }
+
+  private static func from(statusCode: Int32, message: String?) -> TakanawaError {
+    switch statusCode {
+    case bufferTooSmallCode:
+      return .bufferTooSmall(message)
+    case -1:
+      return .nullPointer(message)
+    case -2:
+      return .abiMismatch(message)
+    case -3:
+      return .invalidConfig(message)
+    case -4:
+      return .runtimeNotInitialized(message)
+    case -10:
+      return .targetExists(message)
+    case -11:
+      return .partBusy(message)
+    case -12:
+      return .partSizeMismatch(message)
+    case -13:
+      return .partCorrupt(message)
+    case -14:
+      return .remoteChanged(message)
+    case -20:
+      return .httpProtocol(message)
+    case -21:
+      return .network(message)
+    case -30:
+      return .io(message)
+    case -40:
+      return .hashMismatch(message)
+    case -50:
+      return .cancelled(message)
+    case -51:
+      return .alreadyStarted(message)
+    case -100:
+      return .panic(message)
+    case -101:
+      return .internalError(message)
+    default:
+      return .unknown(statusCode: statusCode, message: message)
+    }
+  }
+}
+
+private func lastErrorMessage(for handle: OpaquePointer?) -> String? {
+  guard let handle else {
+    return nil
+  }
+
+  var written = 0
+  let sizeStatus = tknw_download_last_error(handle, nil, 0, &written)
+  guard takanawaStatusCode(sizeStatus) == TakanawaError.bufferTooSmallCode, written > 0 else {
+    return nil
+  }
+
+  var buffer = [CChar](repeating: 0, count: written)
+  let status = tknw_download_last_error(handle, &buffer, buffer.count, &written)
+  guard takanawaStatusCode(status) == TakanawaError.okCode else {
+    return nil
+  }
+  return String(cString: buffer)
+}
+
+private func takanawaStatusCode<Status>(_ status: Status) -> Int32 {
+  withUnsafeBytes(of: status) { bytes in
+    bytes.load(as: Int32.self)
+  }
+}
+
+private extension Optional where Wrapped == Data {
+  func withUnsafeNullableBytes<R>(
+    _ body: (UnsafePointer<UInt8>?, Int) -> R
+  ) -> R {
+    switch self {
+    case let .some(data):
+      return data.withUnsafeBytes { buffer in
+        body(buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count)
+      }
+    case .none:
+      return body(nil, 0)
+    }
+  }
+}

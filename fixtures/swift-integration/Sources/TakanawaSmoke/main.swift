@@ -1,9 +1,22 @@
+import Foundation
 import Takanawa
 
-var config = TknwGlobalConfig()
-config.abi_version = UInt32(TKNW_ABI_VERSION)
-config.struct_size = MemoryLayout<TknwGlobalConfig>.stride
-config.max_io = 1
+try Takanawa.initialize(maxIo: 1)
+try Takanawa.setMaxIo(1)
 
-_ = tknw_global_init(&config)
-_ = tknw_global_shutdown()
+let tempFile = FileManager.default.temporaryDirectory
+  .appendingPathComponent("takanawa-swift-smoke.bin")
+  .path
+
+let config = try DownloadConfig(
+  url: "https://example.com/file.bin",
+  targetPath: tempFile,
+  chunkSize: 0,
+  parallelism: 0
+)
+let download = try TakanawaDownload.create(config)
+_ = try download.snapshot()
+_ = try download.copyBitmap()
+try download.close()
+
+try Takanawa.shutdown()
