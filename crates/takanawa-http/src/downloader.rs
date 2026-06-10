@@ -641,7 +641,7 @@ impl BandwidthLimiter {
             let start = (*next_available).max(now);
             let nanos = (bytes as u128)
                 .saturating_mul(1_000_000_000)
-                .div_ceil(self.bytes_per_second as u128);
+                .div_ceil(u128::from(self.bytes_per_second));
             let duration = Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX));
             *next_available = start + duration;
             start
