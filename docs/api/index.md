@@ -26,7 +26,7 @@ Android consumers use the Kotlin-first SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.2.0")
+    implementation("ai.yetanother:takanawa-android:0.3.0")
 }
 ```
 
