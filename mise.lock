@@ -5,7 +5,7 @@ version = "4.1.2"
 backend = "cargo:cargo-ndk"
 
 [[tools."cargo:cbindgen"]]
-version = "0.29.3"
+version = "0.29.4"
 backend = "cargo:cbindgen"
 
 [[tools.java]]
@@ -25,12 +25,12 @@ checksum = "sha256:39189dab4eeb15706c424af0ac08a3044c9e48f7db12a7d77f6b7aafc7dd5
 url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz"
 
 [[tools.pnpm]]
-version = "11.5.2"
+version = "11.5.3"
 backend = "aqua:pnpm/pnpm"
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:54993dae26bea0f3c1b0e15f9427f6f6a86827d56f32d1d1554d8cda59a62399"
-url = "https://github.com/pnpm/pnpm/releases/download/v11.5.2/pnpm-darwin-arm64.tar.gz"
+checksum = "sha256:252d9a126d37bcdf640275ac40946f7f9d4ab5d801811f66207ad97d7a9aa7ee"
+url = "https://github.com/pnpm/pnpm/releases/download/v11.5.3/pnpm-darwin-arm64.tar.gz"
 provenance = "github-attestations"
 
 [[tools.rust]]

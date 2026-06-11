@@ -1,0 +1,162 @@
+name: npm
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-publish-dry-run:
+    name: npm publish dry-run
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Discover publishable npm packages
+        id: packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p target
+          : > target/npm-packages.txt
+
+          if [[ ! -d packages ]]; then
+            echo "has_packages=false" >> "$GITHUB_OUTPUT"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          while IFS= read -r manifest; do
+            dir="${manifest%/package.json}"
+            private="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(manifest.private === true));' "$manifest")"
+            if [[ "$private" == "true" ]]; then
+              echo "::notice title=Skipping private package::$dir"
+              continue
+            fi
+            echo "$dir" >> target/npm-packages.txt
+          done < <(find packages -mindepth 2 -maxdepth 2 -name package.json -print | sort)
+
+          count="$(wc -l < target/npm-packages.txt | tr -d ' ')"
+          if [[ "$count" == "0" ]]; then
+            echo "has_packages=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_packages=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: npm publish dry-run
+        if: steps.packages.outputs.has_packages == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r dir; do
+            echo "::group::npm publish --dry-run $dir"
+            npm publish "$dir" --dry-run
+            echo "::endgroup::"
+          done < target/npm-packages.txt
+
+  npm-publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Discover publishable npm packages
+        id: packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p target
+          : > target/npm-packages.txt
+
+          if [[ ! -d packages ]]; then
+            echo "has_packages=false" >> "$GITHUB_OUTPUT"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          while IFS= read -r manifest; do
+            dir="${manifest%/package.json}"
+            private="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(manifest.private === true));' "$manifest")"
+            if [[ "$private" == "true" ]]; then
+              echo "::notice title=Skipping private package::$dir"
+              continue
+            fi
+            echo "$dir" >> target/npm-packages.txt
+          done < <(find packages -mindepth 2 -maxdepth 2 -name package.json -print | sort)
+
+          count="$(wc -l < target/npm-packages.txt | tr -d ' ')"
+          if [[ "$count" == "0" ]]; then
+            echo "has_packages=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_packages=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        if: steps.packages.outputs.has_packages == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_version_exists() {
+            local name="$1"
+            local version="$2"
+            npm view "${name}@${version}" version >/dev/null 2>&1
+          }
+
+          while IFS= read -r dir; do
+            name="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(manifest.name);' "$dir/package.json")"
+            version="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(manifest.version);' "$dir/package.json")"
+
+            if package_version_exists "$name" "$version"; then
+              echo "::notice title=Already published::$name $version already exists on npm; skipping."
+              continue
+            fi
+
+            publish_args=(publish "$dir" --provenance)
+            if [[ "$name" == @*/* ]]; then
+              publish_args+=(--access public)
+            fi
+
+            echo "::group::npm publish $name@$version"
+            npm "${publish_args[@]}"
+            echo "::endgroup::"
+          done < target/npm-packages.txt
