@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use takanawa_core::{HashConfig, Result, TakanawaError};
-use takanawa_http::{DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, download_to_completion};
+use takanawa_http::{
+    DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, RetryConfig, TimeoutConfig,
+    download_to_completion,
+};
 
 #[tokio::main]
 async fn main() {
@@ -38,6 +41,10 @@ async fn run() -> Result<()> {
             target_path: PathBuf::from(&args[1]),
             chunk_size: 0,
             parallelism: 0,
+            max_parallel_chunks: 0,
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
             hash,
         },
     )

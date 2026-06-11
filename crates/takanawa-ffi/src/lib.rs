@@ -7,10 +7,12 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::ptr;
 use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 
 use takanawa_core::{HashConfig, TakanawaError};
 use takanawa_http::{
-    DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase,
+    DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase, RetryConfig,
+    TimeoutConfig,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -64,6 +66,14 @@ pub struct TknwDownloadConfig {
     pub target_path: *const c_char,
     pub chunk_size: u64,
     pub parallelism: usize,
+    pub max_parallel_chunks: usize,
+    pub max_retries: u32,
+    pub backoff_initial_millis: u64,
+    pub backoff_max_millis: u64,
+    pub connect_timeout_millis: u64,
+    pub read_timeout_millis: u64,
+    pub total_timeout_millis: u64,
+    pub bytes_per_second_limit: u64,
     pub hash_kind: u32,
     pub expected_sha256: *const c_uchar,
     pub expected_sha256_len: usize,
@@ -176,6 +186,18 @@ pub extern "C" fn tknw_download_create(
             target_path: PathBuf::from(target_path),
             chunk_size: config.chunk_size,
             parallelism: config.parallelism,
+            max_parallel_chunks: config.max_parallel_chunks,
+            retry: RetryConfig {
+                max_retries: config.max_retries,
+                backoff_initial: millis(config.backoff_initial_millis),
+                backoff_max: millis(config.backoff_max_millis),
+            },
+            timeout: TimeoutConfig {
+                connect: millis(config.connect_timeout_millis),
+                read: millis(config.read_timeout_millis),
+                total: millis(config.total_timeout_millis),
+            },
+            bytes_per_second_limit: config.bytes_per_second_limit,
             hash,
         };
         let download = Box::new(TknwDownload {
@@ -379,6 +401,10 @@ fn current_global() -> Result<Arc<GlobalRuntime>, TakanawaError> {
         .ok_or(TakanawaError::RuntimeNotInitialized)
 }
 
+const fn millis(value: u64) -> Duration {
+    Duration::from_millis(value)
+}
+
 fn validate_abi(
     name: &'static str,
     abi_version: u32,
@@ -567,6 +593,14 @@ mod android_jni {
         target_path: JString<'local>,
         chunk_size: jlong,
         parallelism: jint,
+        max_parallel_chunks: jint,
+        max_retries: jint,
+        backoff_initial_millis: jlong,
+        backoff_max_millis: jlong,
+        connect_timeout_millis: jlong,
+        read_timeout_millis: jlong,
+        total_timeout_millis: jlong,
+        bytes_per_second_limit: jlong,
         expected_sha256: JByteArray<'local>,
         out_handle: JLongArray<'local>,
     ) -> jint {
@@ -575,6 +609,30 @@ mod android_jni {
                 return Ok(status_code(TknwStatus::InvalidConfig));
             };
             let Ok(parallelism) = usize::try_from(parallelism) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(max_parallel_chunks) = usize::try_from(max_parallel_chunks) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(max_retries) = u32::try_from(max_retries) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(backoff_initial_millis) = u64::try_from(backoff_initial_millis) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(backoff_max_millis) = u64::try_from(backoff_max_millis) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(connect_timeout_millis) = u64::try_from(connect_timeout_millis) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(read_timeout_millis) = u64::try_from(read_timeout_millis) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(total_timeout_millis) = u64::try_from(total_timeout_millis) else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
+            let Ok(bytes_per_second_limit) = u64::try_from(bytes_per_second_limit) else {
                 return Ok(status_code(TknwStatus::InvalidConfig));
             };
 
@@ -599,6 +657,14 @@ mod android_jni {
                 target_path: target_path.as_ptr(),
                 chunk_size,
                 parallelism,
+                max_parallel_chunks,
+                max_retries,
+                backoff_initial_millis,
+                backoff_max_millis,
+                connect_timeout_millis,
+                read_timeout_millis,
+                total_timeout_millis,
+                bytes_per_second_limit,
                 hash_kind: if expected_hash.is_some() {
                     TknwHashKind::Sha256 as u32
                 } else {
@@ -899,6 +965,14 @@ mod tests {
             target_path: target.as_ptr(),
             chunk_size: 0,
             parallelism: 0,
+            max_parallel_chunks: 0,
+            max_retries: 4,
+            backoff_initial_millis: 100,
+            backoff_max_millis: 3_000,
+            connect_timeout_millis: 30_000,
+            read_timeout_millis: 0,
+            total_timeout_millis: 0,
+            bytes_per_second_limit: 0,
             hash_kind: TknwHashKind::None as u32,
             expected_sha256: ptr::null(),
             expected_sha256_len: 0,

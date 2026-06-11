@@ -55,6 +55,14 @@ typedef struct TknwDownloadConfig {
   const char *target_path;
   uint64_t chunk_size;
   size_t parallelism;
+  size_t max_parallel_chunks;
+  uint32_t max_retries;
+  uint64_t backoff_initial_millis;
+  uint64_t backoff_max_millis;
+  uint64_t connect_timeout_millis;
+  uint64_t read_timeout_millis;
+  uint64_t total_timeout_millis;
+  uint64_t bytes_per_second_limit;
   uint32_t hash_kind;
   const unsigned char *expected_sha256;
   size_t expected_sha256_len;

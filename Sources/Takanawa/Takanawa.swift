@@ -34,6 +34,14 @@ public struct DownloadConfig: Sendable {
   public var targetPath: String
   public var chunkSize: UInt64
   public var parallelism: Int
+  public var maxParallelChunks: Int
+  public var maxRetries: UInt32
+  public var backoffInitialMillis: UInt64
+  public var backoffMaxMillis: UInt64
+  public var connectTimeoutMillis: UInt64
+  public var readTimeoutMillis: UInt64
+  public var totalTimeoutMillis: UInt64
+  public var bytesPerSecondLimit: UInt64
   public var expectedSha256: Data?
 
   public init(
@@ -41,6 +49,14 @@ public struct DownloadConfig: Sendable {
     targetPath: String,
     chunkSize: UInt64 = 0,
     parallelism: Int = 0,
+    maxParallelChunks: Int = 0,
+    maxRetries: UInt32 = 4,
+    backoffInitialMillis: UInt64 = 100,
+    backoffMaxMillis: UInt64 = 3_000,
+    connectTimeoutMillis: UInt64 = 30_000,
+    readTimeoutMillis: UInt64 = 0,
+    totalTimeoutMillis: UInt64 = 0,
+    bytesPerSecondLimit: UInt64 = 0,
     expectedSha256: Data? = nil
   ) throws {
     guard !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -52,6 +68,9 @@ public struct DownloadConfig: Sendable {
     guard parallelism >= 0 else {
       throw TakanawaError.invalidConfig("parallelism must be greater than or equal to 0")
     }
+    guard maxParallelChunks >= 0 else {
+      throw TakanawaError.invalidConfig("maxParallelChunks must be greater than or equal to 0")
+    }
     if let expectedSha256, expectedSha256.count != 32 {
       throw TakanawaError.invalidConfig("expectedSha256 must be exactly 32 bytes")
     }
@@ -60,6 +79,14 @@ public struct DownloadConfig: Sendable {
     self.targetPath = targetPath
     self.chunkSize = chunkSize
     self.parallelism = parallelism
+    self.maxParallelChunks = maxParallelChunks
+    self.maxRetries = maxRetries
+    self.backoffInitialMillis = backoffInitialMillis
+    self.backoffMaxMillis = backoffMaxMillis
+    self.connectTimeoutMillis = connectTimeoutMillis
+    self.readTimeoutMillis = readTimeoutMillis
+    self.totalTimeoutMillis = totalTimeoutMillis
+    self.bytesPerSecondLimit = bytesPerSecondLimit
     self.expectedSha256 = expectedSha256
   }
 }
@@ -87,6 +114,14 @@ public final class TakanawaDownload {
           native.target_path = targetPathPointer
           native.chunk_size = config.chunkSize
           native.parallelism = config.parallelism
+          native.max_parallel_chunks = config.maxParallelChunks
+          native.max_retries = config.maxRetries
+          native.backoff_initial_millis = config.backoffInitialMillis
+          native.backoff_max_millis = config.backoffMaxMillis
+          native.connect_timeout_millis = config.connectTimeoutMillis
+          native.read_timeout_millis = config.readTimeoutMillis
+          native.total_timeout_millis = config.totalTimeoutMillis
+          native.bytes_per_second_limit = config.bytesPerSecondLimit
           native.hash_kind = config.expectedSha256 == nil ? 0 : 1
           native.expected_sha256 = expectedSha256Pointer
           native.expected_sha256_len = expectedSha256Len
