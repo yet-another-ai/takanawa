@@ -22,7 +22,7 @@ run = "rustup component add rustfmt clippy"
 [tasks."version:sync"]
 description = "Sync release-version references from Cargo.toml"
 run = "bash scripts/sync-version.sh"
-sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "scripts/sync-version.sh"]
+sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "packages/*/package.json", "scripts/sync-version.sh"]
 
 [tasks.test]
 description = "Run all workspace tests with all features enabled"

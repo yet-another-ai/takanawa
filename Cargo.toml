@@ -4,7 +4,7 @@ members = [
     "crates/takanawa-http",
     "crates/takanawa-ffi",
     "crates/takanawa-cli",
-    "packages/takanawa",
+    "packages/takanawa-node",
 ]
 resolver = "2"
 
