@@ -25,6 +25,12 @@ perl -0pi -e "s/(takanawa-http = \\{ version = \")[^\"]+(\", path = \"crates\\/t
 perl -0pi -e "s/(project\\(Takanawa VERSION )[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${version}/" CMakeLists.txt
 perl -0pi -e "s/(\"version\": \")[^\"]+(\")/\${1}${version}\${2}/" ports/takanawa/vcpkg.json
 
+npm_package_manifests=(packages/*/package.json)
+for file in "${npm_package_manifests[@]}"; do
+  [[ -e "$file" ]] || continue
+  perl -0pi -e "s/(^\\s*\"version\": \")[^\"]+(\")/\${1}${version}\${2}/m" "$file"
+done
+
 android_version_reference_files=(
   README.md
   docs/api/index.md

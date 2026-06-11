@@ -40,7 +40,7 @@ Android consumers use the Kotlin-first SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.3.1")
+    implementation("ai.yetanother:takanawa-android:0.4.0")
 }
 
 val download = TakanawaDownload.create(config)

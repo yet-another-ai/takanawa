@@ -1,11 +1,11 @@
-# @yetanother.ai/takanawa
+# takanawa-node
 
 Node.js and Electron bindings for Takanawa, built with napi-rs and wrapped with a Vite + TypeScript API.
 
 ## Development
 
 ```sh
-pnpm --filter @yetanother.ai/takanawa build
+pnpm --filter takanawa-node build
 ```
 
 The package builds the native Node-API addon first, then emits the TypeScript wrapper as both ESM and CommonJS.
