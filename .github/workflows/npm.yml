@@ -83,6 +83,7 @@ jobs:
   npm-publish:
     name: npm publish
     runs-on: ubuntu-latest
+    environment: npm-registry
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     permissions:
       contents: read
