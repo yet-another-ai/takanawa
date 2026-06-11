@@ -1,0 +1,24 @@
+[package]
+name = "takanawa-node"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+name = "takanawa_node"
+
+[dependencies]
+napi.workspace = true
+napi-derive.workspace = true
+takanawa-core.workspace = true
+takanawa-http = { workspace = true, features = ["tls-rustls"] }
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+napi-build = "2.3.2"

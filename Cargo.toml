@@ -4,6 +4,7 @@ members = [
     "crates/takanawa-http",
     "crates/takanawa-ffi",
     "crates/takanawa-cli",
+    "packages/takanawa",
 ]
 resolver = "2"
 
@@ -29,6 +30,8 @@ takanawa-http = { version = "0.3.1", path = "crates/takanawa-http", default-feat
 tempfile = "3.14"
 thiserror = "2.0"
 tokio = { version = "1.41", features = ["fs", "io-util", "macros", "rt-multi-thread", "sync", "time"] }
+napi = { version = "3.9.1", default-features = false, features = ["napi8", "tokio_rt"] }
+napi-derive = "3.5.6"
 webpki-roots = "1.0"
 
 [workspace.lints.rust]
