@@ -207,8 +207,7 @@ impl PartFile {
     }
 
     fn verify_hash(&mut self) -> Result<bool> {
-        let mut verifier = HashVerifier::new(self.metadata.hash);
-        let Some(verifier) = verifier.as_mut() else {
+        let Some(mut verifier) = HashVerifier::new(self.metadata.hash) else {
             return Ok(true);
         };
 

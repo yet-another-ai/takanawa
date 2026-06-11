@@ -132,7 +132,6 @@ impl HashConfig {
     pub fn from_expected_bytes(kind: HashKind, bytes: &[u8]) -> Option<Self> {
         match kind {
             HashKind::None if bytes.is_empty() => Some(Self::None),
-            HashKind::None => None,
             HashKind::Sha1 if bytes.len() == 20 => Some(Self::Sha1(bytes.try_into().ok()?)),
             HashKind::Sha256 if bytes.len() == 32 => Some(Self::Sha256(bytes.try_into().ok()?)),
             HashKind::Sha512 if bytes.len() == 64 => Some(Self::Sha512(bytes.try_into().ok()?)),
@@ -205,7 +204,7 @@ pub fn hash_url(url: &str) -> [u8; 32] {
     digest.into()
 }
 
-struct Sha1Hasher {
+pub(crate) struct Sha1Hasher {
     state: [u32; 5],
     len: u64,
     buffer: [u8; 64],
@@ -324,7 +323,7 @@ fn sha1_compress(state: &mut [u32; 5], block: &[u8; 64]) {
     state[4] = state[4].wrapping_add(e);
 }
 
-struct Md5Hasher {
+pub(crate) struct Md5Hasher {
     state: [u32; 4],
     len: u64,
     buffer: [u8; 64],
