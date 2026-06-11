@@ -22,7 +22,7 @@ run = "rustup component add rustfmt clippy"
 [tasks."version:sync"]
 description = "Sync release-version references from Cargo.toml"
 run = "bash scripts/sync-version.sh"
-sources = ["Cargo.toml", "README.md"]
+sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "scripts/sync-version.sh"]
 
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
@@ -56,6 +56,11 @@ outputs = ["docs/.vitepress/dist"]
 [tasks."docs:preview"]
 description = "Preview the built VitePress documentation site"
 run = "pnpm docs:preview"
+
+[tasks."test:cmake-integration"]
+description = "Build and run the CMake C++ smoke fixture against the C ABI target"
+run = "bash -lc 'set -euo pipefail; build_dir=\"${TMPDIR:-/tmp}/takanawa-cmake-integration\"; rm -rf \"$build_dir\"; cmake -S fixtures/cmake-integration -B \"$build_dir\" -DTAKANAWA_CARGO_PROFILE=debug; cmake --build \"$build_dir\"; \"$build_dir/takanawa_cpp_smoke\"'"
+sources = ["CMakeLists.txt", "cmake/**/*.cmake.in", "fixtures/cmake-integration/**/*", "include/takanawa.h", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 
 [tasks."build:desktop"]
 description = "Build all workspace crates for the current desktop host"

@@ -12,6 +12,13 @@ library artifacts for embedding through a stable C ABI.
 mise run build:desktop
 ```
 
+C and C++ consumers can use the generated CMake package target
+`Takanawa::takanawa` or the local vcpkg overlay port.
+
+```sh
+mise run test:cmake-integration
+```
+
 ## Android
 
 Android packages include JNI libraries for supported ABIs and a Kotlin-first

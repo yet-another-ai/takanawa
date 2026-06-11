@@ -101,3 +101,24 @@ The checked-in `Package.swift` uses the local `target/apple/Takanawa.xcframework
 path so development and CI do not need to precompute a future release checksum.
 Release builds generate `target/swiftpm/Package.swift` with the checksum for the
 uploaded `Takanawa.xcframework.zip`.
+
+## C and C++
+
+C and C++ consumers can link the C ABI library with CMake:
+
+```cmake
+add_subdirectory(path/to/takanawa)
+target_link_libraries(app PRIVATE Takanawa::takanawa)
+```
+
+The same CMake package is available through the local vcpkg overlay port:
+
+```sh
+vcpkg install takanawa --overlay-ports=/path/to/takanawa/ports
+```
+
+Build the CMake smoke fixture:
+
+```sh
+mise run test:cmake-integration
+```

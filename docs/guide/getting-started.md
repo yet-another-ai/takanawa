@@ -29,7 +29,7 @@ The Android SDK is published as an AAR:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.3.0")
+    implementation("ai.yetanother:takanawa-android:0.3.1")
 }
 ```
 
@@ -51,4 +51,25 @@ Verify the SwiftPM smoke test:
 
 ```sh
 mise run test:swift-integration
+```
+
+## C and C++
+
+Build and link the C ABI library with CMake:
+
+```cmake
+add_subdirectory(path/to/takanawa)
+target_link_libraries(app PRIVATE Takanawa::takanawa)
+```
+
+Verify the CMake smoke test:
+
+```sh
+mise run test:cmake-integration
+```
+
+Use the local vcpkg overlay port when consuming from a vcpkg project:
+
+```sh
+vcpkg install takanawa --overlay-ports=/path/to/takanawa/ports
 ```

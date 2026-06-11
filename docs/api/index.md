@@ -26,7 +26,7 @@ Android consumers use the Kotlin-first SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.3.0")
+    implementation("ai.yetanother:takanawa-android:0.3.1")
 }
 
 val download = TakanawaDownload.create(config)
@@ -48,6 +48,8 @@ try download.start()
 
 C ABI consumers can register a nullable `TknwProgressCallback` with
 `tknw_download_set_progress_callback`. Passing `NULL` clears the callback.
+C and C++ projects can link the native library through the CMake target
+`Takanawa::takanawa` or through the local vcpkg overlay port.
 
 ## Local Rustdoc
 
