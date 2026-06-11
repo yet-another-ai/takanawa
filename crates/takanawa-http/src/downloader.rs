@@ -440,7 +440,7 @@ async fn run_download(
 }
 
 enum ChunkTaskResult {
-    Committed(PartMetadata),
+    Committed(Box<PartMetadata>),
     Paused,
 }
 
@@ -598,7 +598,7 @@ async fn fetch_chunk_with_retry(
                     return Ok(ChunkTaskResult::Paused);
                 }
                 let metadata = commit_written_chunk(writer_tx, chunk.index).await?;
-                return Ok(ChunkTaskResult::Committed(metadata));
+                return Ok(ChunkTaskResult::Committed(Box::new(metadata)));
             }
             Ok(FetchChunkStatus::Paused) => return Ok(ChunkTaskResult::Paused),
             Err(err) if err.is_retryable() && attempt < retry.max_attempts() => {

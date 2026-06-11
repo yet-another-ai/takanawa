@@ -14,6 +14,20 @@ distributed through Maven Central and SwiftPM artifacts.
   library consumers.
 - [`takanawa-cli`](https://docs.rs/takanawa-cli): dogfood command-line client.
 
+## Hash Verification
+
+Download configurations can request final file verification with SHA-1,
+SHA-256, SHA-512, MD5, or CRC32. Rust callers pass a `HashConfig` variant, the
+C ABI uses `hash_kind` with the expected digest bytes, Android uses
+`HashKind`/`expectedHash`, Swift uses `HashKind`/`expectedHash`, and Node.js
+uses `hash: { kind, expected }` or `hash: "kind:<hex>"`. Existing Android,
+Swift, and Node.js `expectedSha256`/`sha256` shortcuts continue to select
+SHA-256.
+
+Digest byte lengths are SHA-1 = 20, SHA-256 = 32, SHA-512 = 64, MD5 = 16, and
+CRC32 = 4 bytes. CRC32 is represented in standard big-endian hexadecimal order
+(for example, `352441c2` becomes bytes `35 24 41 c2`).
+
 ## Native Interfaces
 
 The public C header is generated from `takanawa-ffi`:
