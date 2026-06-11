@@ -29,6 +29,32 @@ public enum Takanawa {
   }
 }
 
+public enum HashKind: UInt32, Sendable {
+  case none = 0
+  case sha256 = 1
+  case sha1 = 2
+  case sha512 = 3
+  case md5 = 4
+  case crc32 = 5
+
+  public var expectedLength: Int {
+    switch self {
+    case .none:
+      return 0
+    case .sha1:
+      return 20
+    case .sha256:
+      return 32
+    case .sha512:
+      return 64
+    case .md5:
+      return 16
+    case .crc32:
+      return 4
+    }
+  }
+}
+
 public struct DownloadConfig: Sendable {
   public var url: String
   public var targetPath: String
@@ -43,6 +69,8 @@ public struct DownloadConfig: Sendable {
   public var totalTimeoutMillis: UInt64
   public var bytesPerSecondLimit: UInt64
   public var expectedSha256: Data?
+  public var hashKind: HashKind
+  public var expectedHash: Data?
 
   public init(
     url: String,
@@ -57,7 +85,9 @@ public struct DownloadConfig: Sendable {
     readTimeoutMillis: UInt64 = 0,
     totalTimeoutMillis: UInt64 = 0,
     bytesPerSecondLimit: UInt64 = 0,
-    expectedSha256: Data? = nil
+    expectedSha256: Data? = nil,
+    hashKind: HashKind? = nil,
+    expectedHash: Data? = nil
   ) throws {
     guard !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw TakanawaError.invalidConfig("url must not be blank")
@@ -71,8 +101,20 @@ public struct DownloadConfig: Sendable {
     guard maxParallelChunks >= 0 else {
       throw TakanawaError.invalidConfig("maxParallelChunks must be greater than or equal to 0")
     }
-    if let expectedSha256, expectedSha256.count != 32 {
+    if let expectedSha256, expectedSha256.count != HashKind.sha256.expectedLength {
       throw TakanawaError.invalidConfig("expectedSha256 must be exactly 32 bytes")
+    }
+    let resolvedHashKind = hashKind ?? (expectedSha256 == nil ? .none : .sha256)
+    let resolvedExpectedHash = expectedHash ?? expectedSha256
+    guard (resolvedHashKind == .none) == (resolvedExpectedHash == nil) else {
+      throw TakanawaError.invalidConfig(
+        "expectedHash must be nil when hashKind is none and non-nil otherwise"
+      )
+    }
+    if let resolvedExpectedHash, resolvedExpectedHash.count != resolvedHashKind.expectedLength {
+      throw TakanawaError.invalidConfig(
+        "expectedHash for \(resolvedHashKind) must be exactly \(resolvedHashKind.expectedLength) bytes"
+      )
     }
 
     self.url = url
@@ -88,6 +130,8 @@ public struct DownloadConfig: Sendable {
     self.totalTimeoutMillis = totalTimeoutMillis
     self.bytesPerSecondLimit = bytesPerSecondLimit
     self.expectedSha256 = expectedSha256
+    self.hashKind = resolvedHashKind
+    self.expectedHash = resolvedExpectedHash
   }
 }
 
@@ -106,7 +150,7 @@ public final class TakanawaDownload {
     var outDownload: OpaquePointer?
     let status = config.url.withCString { urlPointer in
       config.targetPath.withCString { targetPathPointer in
-        config.expectedSha256.withUnsafeNullableBytes { expectedSha256Pointer, expectedSha256Len in
+        config.expectedHash.withUnsafeNullableBytes { expectedHashPointer, expectedHashLen in
           var native = TknwDownloadConfig()
           native.abi_version = UInt32(TKNW_ABI_VERSION)
           native.struct_size = MemoryLayout<TknwDownloadConfig>.stride
@@ -122,9 +166,9 @@ public final class TakanawaDownload {
           native.read_timeout_millis = config.readTimeoutMillis
           native.total_timeout_millis = config.totalTimeoutMillis
           native.bytes_per_second_limit = config.bytesPerSecondLimit
-          native.hash_kind = config.expectedSha256 == nil ? 0 : 1
-          native.expected_sha256 = expectedSha256Pointer
-          native.expected_sha256_len = expectedSha256Len
+          native.hash_kind = config.hashKind.rawValue
+          native.expected_sha256 = expectedHashPointer
+          native.expected_sha256_len = expectedHashLen
 
           return tknw_download_create(&native, &outDownload)
         }

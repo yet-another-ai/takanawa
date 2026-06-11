@@ -7,7 +7,7 @@ downloads can resume automatically.
 
 ## Workspace
 
-- `takanawa-core`: chunk planning, `.part` metadata, file recovery, hash checks.
+- `takanawa-core`: chunk planning, `.part` metadata, file recovery, SHA-1/SHA-256/SHA-512/MD5/CRC32 hash checks.
 - `takanawa-http`: Tokio/reqwest HTTP range download engine.
 - `takanawa-ffi`: C ABI wrapper built as `cdylib` and `staticlib`.
 - `takanawa-cli`: small dogfood CLI.

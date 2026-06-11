@@ -10,7 +10,7 @@ use std::ptr;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
-use takanawa_core::{HashConfig, TakanawaError};
+use takanawa_core::{HashConfig, HashKind, TakanawaError};
 use takanawa_http::{
     DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase, RetryConfig,
     TimeoutConfig,
@@ -48,6 +48,10 @@ pub enum TknwStatus {
 pub enum TknwHashKind {
     None = 0,
     Sha256 = 1,
+    Sha1 = 2,
+    Sha512 = 3,
+    Md5 = 4,
+    Crc32 = 5,
 }
 
 #[repr(C)]
@@ -440,29 +444,40 @@ fn read_c_string(ptr: *const c_char, name: &'static str) -> Result<String, Takan
 }
 
 fn read_hash_config(config: &TknwDownloadConfig) -> Result<HashConfig, TakanawaError> {
-    match config.hash_kind {
-        0 => Ok(HashConfig::None),
-        1 => {
-            if config.expected_sha256.is_null() {
-                return Err(TakanawaError::NullPointer("expected_sha256"));
-            }
-            if config.expected_sha256_len != 32 {
-                return Err(TakanawaError::InvalidConfig(format!(
-                    "SHA-256 expected hash length must be 32, got {}",
-                    config.expected_sha256_len
-                )));
-            }
-            let mut hash = [0; 32];
-            // SAFETY: expected_sha256 is non-null and expected_sha256_len was validated as 32.
-            unsafe {
-                ptr::copy_nonoverlapping(config.expected_sha256, hash.as_mut_ptr(), 32);
-            }
-            Ok(HashConfig::Sha256(hash))
+    let kind = HashKind::from_u32(config.hash_kind).ok_or_else(|| {
+        TakanawaError::InvalidConfig(format!("unsupported hash kind {}", config.hash_kind))
+    })?;
+    let expected_len = kind.expected_len();
+    if kind == HashKind::None {
+        if config.expected_sha256_len != 0 {
+            return Err(TakanawaError::InvalidConfig(format!(
+                "none expected hash length must be 0, got {}",
+                config.expected_sha256_len
+            )));
         }
-        other => Err(TakanawaError::InvalidConfig(format!(
-            "unsupported hash kind {other}"
-        ))),
+        return Ok(HashConfig::None);
     }
+    if config.expected_sha256.is_null() {
+        return Err(TakanawaError::NullPointer("expected_sha256"));
+    }
+    if config.expected_sha256_len != expected_len {
+        return Err(TakanawaError::InvalidConfig(format!(
+            "{} expected hash length must be {expected_len}, got {}",
+            kind.name(),
+            config.expected_sha256_len
+        )));
+    }
+
+    // SAFETY: expected_sha256 is non-null and expected_sha256_len was validated for the hash kind.
+    let expected =
+        unsafe { std::slice::from_raw_parts(config.expected_sha256, config.expected_sha256_len) };
+    HashConfig::from_expected_bytes(kind, expected).ok_or_else(|| {
+        TakanawaError::InvalidConfig(format!(
+            "{} expected hash length must be {expected_len}, got {}",
+            kind.name(),
+            config.expected_sha256_len
+        ))
+    })
 }
 
 fn ffi_boundary<F>(f: F) -> TknwStatus
@@ -542,8 +557,8 @@ mod android_jni {
     use jni::sys::{jbyte, jint, jlong, jstring};
 
     use super::{
-        TKNW_ABI_VERSION, TknwDownload, TknwDownloadConfig, TknwDownloadSnapshot, TknwGlobalConfig,
-        TknwHashKind, TknwStatus, tknw_download_cancel, tknw_download_copy_bitmap,
+        HashKind, TKNW_ABI_VERSION, TknwDownload, TknwDownloadConfig, TknwDownloadSnapshot,
+        TknwGlobalConfig, TknwStatus, tknw_download_cancel, tknw_download_copy_bitmap,
         tknw_download_create, tknw_download_last_error, tknw_download_pause, tknw_download_release,
         tknw_download_snapshot, tknw_download_start, tknw_global_init, tknw_global_set_max_io,
         tknw_global_shutdown,
@@ -602,6 +617,7 @@ mod android_jni {
         read_timeout_millis: jlong,
         total_timeout_millis: jlong,
         bytes_per_second_limit: jlong,
+        hash_kind: jint,
         expected_sha256: JByteArray<'local>,
         out_handle: JLongArray<'local>,
     ) -> jint {
@@ -645,6 +661,10 @@ mod android_jni {
                 Ok(target_path) => target_path,
                 Err(status) => return Ok(status_code(status)),
             };
+            let hash_kind = HashKind::from_u32(u32::try_from(hash_kind).unwrap_or(u32::MAX));
+            let Some(hash_kind) = hash_kind else {
+                return Ok(status_code(TknwStatus::InvalidConfig));
+            };
             let expected_hash = match read_optional_hash(&mut env, &expected_sha256) {
                 Ok(expected_hash) => expected_hash,
                 Err(status) => return Ok(status_code(status)),
@@ -666,11 +686,7 @@ mod android_jni {
                 read_timeout_millis,
                 total_timeout_millis,
                 bytes_per_second_limit,
-                hash_kind: if expected_hash.is_some() {
-                    TknwHashKind::Sha256 as u32
-                } else {
-                    TknwHashKind::None as u32
-                },
+                hash_kind: hash_kind as u32,
                 expected_sha256: hash_ptr,
                 expected_sha256_len: hash_len,
             };

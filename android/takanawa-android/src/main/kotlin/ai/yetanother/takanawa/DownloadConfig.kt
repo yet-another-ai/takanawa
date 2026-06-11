@@ -14,6 +14,8 @@ data class DownloadConfig @JvmOverloads constructor(
     val totalTimeoutMillis: Long = 0,
     val bytesPerSecondLimit: Long = 0,
     val expectedSha256: ByteArray? = null,
+    val hashKind: HashKind = if (expectedSha256 == null) HashKind.NONE else HashKind.SHA256,
+    val expectedHash: ByteArray? = expectedSha256,
 ) {
     init {
         require(url.isNotBlank()) { "url must not be blank" }
@@ -34,14 +36,16 @@ data class DownloadConfig @JvmOverloads constructor(
         require(bytesPerSecondLimit >= 0) {
             "bytesPerSecondLimit must be greater than or equal to 0"
         }
-        require(expectedSha256 == null || expectedSha256.size == SHA256_LENGTH) {
-            "expectedSha256 must be exactly $SHA256_LENGTH bytes"
+        require(expectedSha256 == null || expectedSha256.size == HashKind.SHA256.expectedLength) {
+            "expectedSha256 must be exactly ${HashKind.SHA256.expectedLength} bytes"
+        }
+        require((hashKind == HashKind.NONE) == (expectedHash == null)) {
+            "expectedHash must be null when hashKind is NONE and non-null otherwise"
+        }
+        require(expectedHash == null || expectedHash.size == hashKind.expectedLength) {
+            "expectedHash for $hashKind must be exactly ${hashKind.expectedLength} bytes"
         }
     }
 
-    internal fun expectedSha256Copy(): ByteArray? = expectedSha256?.copyOf()
-
-    private companion object {
-        private const val SHA256_LENGTH = 32
-    }
+    internal fun expectedHashCopy(): ByteArray? = expectedHash?.copyOf()
 }
