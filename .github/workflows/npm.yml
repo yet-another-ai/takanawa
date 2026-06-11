@@ -73,8 +73,10 @@ jobs:
           set -euo pipefail
 
           while IFS= read -r dir; do
-            echo "::group::npm publish --dry-run $dir"
-            npm publish "$dir" --dry-run
+            package_dir="./$dir"
+
+            echo "::group::npm publish --dry-run $package_dir"
+            npm publish "$package_dir" --dry-run
             echo "::endgroup::"
           done < target/npm-packages.txt
 
@@ -151,7 +153,8 @@ jobs:
               continue
             fi
 
-            publish_args=(publish "$dir" --provenance)
+            package_dir="./$dir"
+            publish_args=(publish "$package_dir" --provenance)
             if [[ "$name" == @*/* ]]; then
               publish_args+=(--access public)
             fi
