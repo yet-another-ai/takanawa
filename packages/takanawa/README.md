@@ -18,7 +18,11 @@ import { DownloadTask, downloadToCompletion } from '@yetanother.ai/takanawa'
 await downloadToCompletion({
   url: 'https://example.com/file.zip',
   targetPath: '/tmp/file.zip',
-  parallelism: 4
+  parallelism: 4,
+  hash: {
+    kind: 'sha256',
+    expected: '...64 hex characters...'
+  }
 })
 
 const task = new DownloadTask({
@@ -31,3 +35,7 @@ console.log(task.snapshot())
 ```
 
 Large byte counts are exposed as `bigint` in the TypeScript API so Node and Electron callers do not lose precision.
+
+`hash` supports `sha1`, `sha256`, `sha512`, `md5`, and `crc32` expected
+digests. You can also pass a compact string such as `sha512:<hex>`. The legacy
+`sha256` option remains available for existing callers.

@@ -1,4 +1,9 @@
-import { nativeBinding, type NativeDownloadOptions, type NativeDownloadSnapshot, type NativeDownloadTask } from './binding'
+import {
+  nativeBinding,
+  type NativeDownloadOptions,
+  type NativeDownloadSnapshot,
+  type NativeDownloadTask
+} from './binding'
 
 export type DownloadPhase =
   | 'created'
@@ -9,6 +14,13 @@ export type DownloadPhase =
   | 'cancelled'
   | 'completed'
   | 'failed'
+
+export type HashKind = 'sha1' | 'sha256' | 'sha512' | 'md5' | 'crc32'
+
+export interface HashConfig {
+  kind: HashKind
+  expected: string
+}
 
 export interface DownloadOptions {
   url: string
@@ -24,6 +36,10 @@ export interface DownloadOptions {
   readTimeoutMs?: number
   totalTimeoutMs?: number
   bytesPerSecondLimit?: bigint | number | string
+  hash?: HashConfig | `${HashKind}:${string}`
+  /**
+   * @deprecated Use `hash: { kind: 'sha256', expected: value }` instead.
+   */
   sha256?: string
 }
 
@@ -86,7 +102,52 @@ function normalizeOptions(options: DownloadOptions): NativeDownloadOptions {
     read_timeout_ms: options.readTimeoutMs,
     total_timeout_ms: options.totalTimeoutMs,
     bytes_per_second_limit: normalizeOptionalU64(options.bytesPerSecondLimit),
-    sha256: options.sha256
+    hash: normalizeHash(options),
+    sha256: undefined
+  }
+}
+
+function normalizeHash(options: DownloadOptions): NativeDownloadOptions['hash'] {
+  if (options.hash !== undefined && options.sha256 !== undefined) {
+    throw new TypeError('use either hash or sha256, not both')
+  }
+  if (options.hash === undefined) {
+    return options.sha256 === undefined ? undefined : { kind: 'sha256', expected: options.sha256 }
+  }
+  if (typeof options.hash === 'string') {
+    const separator = options.hash.indexOf(':')
+    if (separator === -1) {
+      throw new TypeError('hash string must use the format "kind:hex"')
+    }
+    return {
+      kind: normalizeHashKind(options.hash.slice(0, separator)),
+      expected: options.hash.slice(separator + 1)
+    }
+  }
+  return {
+    kind: normalizeHashKind(options.hash.kind),
+    expected: options.hash.expected
+  }
+}
+
+function normalizeHashKind(kind: string): HashKind {
+  switch (kind.toLowerCase()) {
+    case 'sha1':
+    case 'sha-1':
+      return 'sha1'
+    case 'sha256':
+    case 'sha-256':
+      return 'sha256'
+    case 'sha512':
+    case 'sha-512':
+      return 'sha512'
+    case 'md5':
+      return 'md5'
+    case 'crc32':
+    case 'crc-32':
+      return 'crc32'
+    default:
+      throw new TypeError(`unsupported hash kind: ${kind}`)
   }
 }
 

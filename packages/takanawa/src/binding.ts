@@ -16,7 +16,13 @@ export interface NativeDownloadOptions {
   read_timeout_ms?: number
   total_timeout_ms?: number
   bytes_per_second_limit?: string
+  hash?: NativeHashConfig
   sha256?: string
+}
+
+export interface NativeHashConfig {
+  kind: string
+  expected: string
 }
 
 export interface NativeDownloadSnapshot {
