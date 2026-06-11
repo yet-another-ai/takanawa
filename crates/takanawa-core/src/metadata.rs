@@ -4,7 +4,7 @@ use crate::bitmap::{ChunkBitmap, bitmap_len};
 use crate::chunk::{chunk_count_for, normalize_chunk_size};
 use crate::{HashConfig, Result, TakanawaError};
 
-pub const METADATA_VERSION: u16 = 1;
+pub const METADATA_VERSION: u16 = 2;
 
 const MAGIC: &[u8; 8] = b"TKNWPRT1";
 const HEADER_LEN: usize = 256;
@@ -24,9 +24,14 @@ const URL_HASH_OFFSET: usize = 56;
 const HASH_KIND_OFFSET: usize = 88;
 const HASH_LEN_OFFSET: usize = 89;
 const EXPECTED_HASH_OFFSET: usize = 92;
-const ETAG_LEN_OFFSET: usize = 124;
-const LAST_MODIFIED_LEN_OFFSET: usize = 126;
-const SLOT_SIZE_OFFSET: usize = 128;
+const EXPECTED_HASH_CAPACITY: usize = 64;
+const ETAG_LEN_OFFSET: usize = 156;
+const LAST_MODIFIED_LEN_OFFSET: usize = 158;
+const SLOT_SIZE_OFFSET: usize = 160;
+
+const V1_ETAG_LEN_OFFSET: usize = 124;
+const V1_LAST_MODIFIED_LEN_OFFSET: usize = 126;
+const V1_SLOT_SIZE_OFFSET: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteInfo {
@@ -197,12 +202,17 @@ impl PartMetadata {
         write_u64(&mut slot, CONTENT_LEN_OFFSET, self.content_len);
         write_u64(&mut slot, CHUNK_SIZE_OFFSET, self.chunk_size);
         write_u64(&mut slot, CHUNK_COUNT_OFFSET, self.chunk_count);
-        write_u64(&mut slot, BITMAP_LEN_OFFSET, bitmap_len as u64);
+        write_u64(
+            &mut slot,
+            BITMAP_LEN_OFFSET,
+            u64::try_from(bitmap_len).expect("bitmap length fits in u64"),
+        );
         slot[URL_HASH_OFFSET..URL_HASH_OFFSET + 32].copy_from_slice(&self.url_hash);
-        slot[HASH_KIND_OFFSET] = self.hash.kind() as u8;
-        if let Some(hash) = self.hash.expected_sha256() {
-            slot[HASH_LEN_OFFSET] = 32;
-            slot[EXPECTED_HASH_OFFSET..EXPECTED_HASH_OFFSET + 32].copy_from_slice(&hash);
+        slot[HASH_KIND_OFFSET] = u8::from(self.hash.kind());
+        if let Some(hash) = self.hash.expected_bytes() {
+            slot[HASH_LEN_OFFSET] =
+                u8::try_from(hash.len()).expect("supported hash lengths fit in one byte");
+            slot[EXPECTED_HASH_OFFSET..EXPECTED_HASH_OFFSET + hash.len()].copy_from_slice(&hash);
         }
         write_u16(
             &mut slot,
@@ -248,11 +258,12 @@ impl PartMetadata {
             ));
         }
         let version = read_u16(slot, VERSION_OFFSET)?;
-        if version != METADATA_VERSION {
+        if version != 1 && version != METADATA_VERSION {
             return Err(TakanawaError::PartCorrupt(format!(
                 "unsupported metadata version {version}"
             )));
         }
+        let offsets = MetadataOffsets::for_version(version);
         let header_len = usize::from(read_u16(slot, HEADER_LEN_OFFSET)?);
         if header_len != HEADER_LEN {
             return Err(TakanawaError::PartCorrupt(format!(
@@ -281,7 +292,7 @@ impl PartMetadata {
             )));
         }
 
-        let slot_size = read_u64(slot, SLOT_SIZE_OFFSET)?;
+        let slot_size = read_u64(slot, offsets.slot_size)?;
         let expected_slot_size = slot_size_for(content_len, chunk_size)?;
         if expected_slot_size != slot_size {
             return Err(TakanawaError::PartCorrupt(format!(
@@ -298,22 +309,33 @@ impl PartMetadata {
         let mut url_hash = [0; 32];
         url_hash.copy_from_slice(&slot[URL_HASH_OFFSET..URL_HASH_OFFSET + 32]);
 
-        let hash = match (slot[HASH_KIND_OFFSET], slot[HASH_LEN_OFFSET]) {
-            (0, 0) => HashConfig::None,
-            (1, 32) => {
-                let mut expected = [0; 32];
-                expected.copy_from_slice(&slot[EXPECTED_HASH_OFFSET..EXPECTED_HASH_OFFSET + 32]);
-                HashConfig::Sha256(expected)
-            }
-            (kind, len) => {
-                return Err(TakanawaError::PartCorrupt(format!(
-                    "unsupported hash kind/length: {kind}/{len}"
-                )));
-            }
-        };
+        let hash_kind =
+            crate::HashKind::from_u32(u32::from(slot[HASH_KIND_OFFSET])).ok_or_else(|| {
+                TakanawaError::PartCorrupt(format!(
+                    "unsupported hash kind: {}",
+                    slot[HASH_KIND_OFFSET]
+                ))
+            })?;
+        let hash_len = usize::from(slot[HASH_LEN_OFFSET]);
+        if hash_len > offsets.expected_hash_capacity {
+            return Err(TakanawaError::PartCorrupt(format!(
+                "hash length {hash_len} exceeds capacity {}",
+                offsets.expected_hash_capacity
+            )));
+        }
+        let hash = HashConfig::from_expected_bytes(
+            hash_kind,
+            &slot[EXPECTED_HASH_OFFSET..EXPECTED_HASH_OFFSET + hash_len],
+        )
+        .ok_or_else(|| {
+            TakanawaError::PartCorrupt(format!(
+                "unsupported hash kind/length: {}/{hash_len}",
+                slot[HASH_KIND_OFFSET]
+            ))
+        })?;
 
-        let etag_len = usize::from(read_u16(slot, ETAG_LEN_OFFSET)?);
-        let last_modified_len = usize::from(read_u16(slot, LAST_MODIFIED_LEN_OFFSET)?);
+        let etag_len = usize::from(read_u16(slot, offsets.etag_len)?);
+        let last_modified_len = usize::from(read_u16(slot, offsets.last_modified_len)?);
         if etag_len > ETAG_CAPACITY || last_modified_len > LAST_MODIFIED_CAPACITY {
             return Err(TakanawaError::PartCorrupt(
                 "stored header length exceeds fixed capacity".to_owned(),
@@ -342,6 +364,34 @@ impl PartMetadata {
             last_modified,
             hash,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MetadataOffsets {
+    etag_len: usize,
+    last_modified_len: usize,
+    slot_size: usize,
+    expected_hash_capacity: usize,
+}
+
+impl MetadataOffsets {
+    const fn for_version(version: u16) -> Self {
+        if version == 1 {
+            Self {
+                etag_len: V1_ETAG_LEN_OFFSET,
+                last_modified_len: V1_LAST_MODIFIED_LEN_OFFSET,
+                slot_size: V1_SLOT_SIZE_OFFSET,
+                expected_hash_capacity: 32,
+            }
+        } else {
+            Self {
+                etag_len: ETAG_LEN_OFFSET,
+                last_modified_len: LAST_MODIFIED_LEN_OFFSET,
+                slot_size: SLOT_SIZE_OFFSET,
+                expected_hash_capacity: EXPECTED_HASH_CAPACITY,
+            }
+        }
     }
 }
 
@@ -465,6 +515,32 @@ mod tests {
         let decoded = PartMetadata::decode_slot(&slot).unwrap();
 
         assert_eq!(decoded, meta);
+    }
+
+    #[test]
+    fn slot_round_trips_wide_hashes() {
+        let remote = RemoteInfo {
+            content_len: 10,
+            etag: None,
+            last_modified: None,
+        };
+        let hashes = [
+            HashConfig::Sha1([1; 20]),
+            HashConfig::Sha256([2; 32]),
+            HashConfig::Sha512([3; 64]),
+            HashConfig::Md5([4; 16]),
+            HashConfig::Crc32([5; 4]),
+        ];
+
+        for hash in hashes {
+            let meta =
+                PartMetadata::new(hash_url("https://example.test/file"), &remote, 4, hash).unwrap();
+            let slot_size = slot_size_for(meta.content_len, meta.chunk_size).unwrap();
+            let slot = meta.encode_slot(slot_size).unwrap();
+            let decoded = PartMetadata::decode_slot(&slot).unwrap();
+
+            assert_eq!(decoded.hash, hash);
+        }
     }
 
     #[test]

@@ -91,7 +91,8 @@ class TakanawaDownload internal constructor(handle: Long) : Closeable {
                     config.readTimeoutMillis,
                     config.totalTimeoutMillis,
                     config.bytesPerSecondLimit,
-                    config.expectedSha256Copy(),
+                    config.hashKind.code,
+                    config.expectedHashCopy(),
                     outHandle,
                 ),
             )

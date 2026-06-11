@@ -40,6 +40,22 @@ enum TknwStatus
 typedef int32_t TknwStatus;
 #endif // __cplusplus
 
+enum TknwHashKind
+#ifdef __cplusplus
+  : uint32_t
+#endif // __cplusplus
+ {
+  TKNW_HASH_NONE = 0,
+  TKNW_HASH_SHA256 = 1,
+  TKNW_HASH_SHA1 = 2,
+  TKNW_HASH_SHA512 = 3,
+  TKNW_HASH_MD5 = 4,
+  TKNW_HASH_CRC32 = 5,
+};
+#ifndef __cplusplus
+typedef uint32_t TknwHashKind;
+#endif // __cplusplus
+
 typedef struct TknwDownload TknwDownload;
 
 typedef struct TknwGlobalConfig {

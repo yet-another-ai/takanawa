@@ -4,11 +4,10 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use fs2::FileExt;
-use sha2::{Digest, Sha256};
 
 use crate::chunk::{ChunkPlan, normalize_chunk_size};
 use crate::metadata::{PartMetadata, RemoteInfo, slot_size_for};
-use crate::{HashConfig, Result, TakanawaError, hash_url};
+use crate::{HashConfig, HashVerifier, Result, TakanawaError, hash_url};
 
 #[derive(Debug)]
 pub struct PartFile {
@@ -172,11 +171,8 @@ impl PartFile {
             ));
         }
 
-        if let HashConfig::Sha256(expected) = self.metadata.hash {
-            let actual = self.compute_sha256()?;
-            if actual != expected {
-                return Err(TakanawaError::HashMismatch);
-            }
+        if !self.verify_hash()? {
+            return Err(TakanawaError::HashMismatch);
         }
 
         let PartFile {
@@ -210,8 +206,12 @@ impl PartFile {
         Ok(())
     }
 
-    fn compute_sha256(&mut self) -> Result<[u8; 32]> {
-        let mut hasher = Sha256::new();
+    fn verify_hash(&mut self) -> Result<bool> {
+        let mut verifier = HashVerifier::new(self.metadata.hash);
+        let Some(verifier) = verifier.as_mut() else {
+            return Ok(true);
+        };
+
         let mut remaining = self.metadata.content_len;
         let mut buffer = vec![0; 1024 * 1024];
         self.file.seek(SeekFrom::Start(0))?;
@@ -219,10 +219,10 @@ impl PartFile {
             let read_len = usize::try_from(remaining.min(buffer.len() as u64))
                 .expect("bounded by buffer length");
             self.file.read_exact(&mut buffer[..read_len])?;
-            hasher.update(&buffer[..read_len]);
+            verifier.update(&buffer[..read_len]);
             remaining -= read_len as u64;
         }
-        Ok(hasher.finalize().into())
+        Ok(verifier.finish())
     }
 }
 
@@ -300,6 +300,10 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+
+    fn hex_array<const N: usize>(value: impl AsRef<str>) -> [u8; N] {
+        hex::decode(value.as_ref()).unwrap().try_into().unwrap()
+    }
 
     fn remote(content_len: u64) -> RemoteInfo {
         RemoteInfo {
@@ -423,6 +427,34 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, TakanawaError::PartSizeMismatch { .. }));
+    }
+
+    #[test]
+    fn finalizes_with_supported_hashes() {
+        let cases = [
+            HashConfig::Sha1(hex_array::<20>("a9993e364706816aba3e25717850c26c9cd0d89d")),
+            HashConfig::Sha256(hex_array::<32>(
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            )),
+            HashConfig::Sha512(hex_array::<64>(concat!(
+                "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a",
+                "2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+            ))),
+            HashConfig::Md5(hex_array::<16>("900150983cd24fb0d6963f7d28e17f72")),
+            HashConfig::Crc32(hex_array::<4>("352441c2")),
+        ];
+
+        for hash in cases {
+            let dir = TempDir::new().unwrap();
+            let target = dir.path().join("file.bin");
+            let mut part =
+                PartFile::open_or_create(&target, "https://example.test/file", &remote(3), 3, hash)
+                    .unwrap();
+            part.write_chunk(0, b"abc").unwrap();
+            part.finalize(&target).unwrap();
+
+            assert_eq!(fs::read(&target).unwrap(), b"abc");
+        }
     }
 
     #[test]

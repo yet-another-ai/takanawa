@@ -28,7 +28,8 @@ internal object NativeBridge {
         readTimeoutMillis: Long,
         totalTimeoutMillis: Long,
         bytesPerSecondLimit: Long,
-        expectedSha256: ByteArray?,
+        hashKind: Int,
+        expectedHash: ByteArray?,
         outHandle: LongArray,
     ): Int
 
