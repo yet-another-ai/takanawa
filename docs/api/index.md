@@ -28,9 +28,26 @@ Android consumers use the Kotlin-first SDK:
 dependencies {
     implementation("ai.yetanother:takanawa-android:0.3.0")
 }
+
+val download = TakanawaDownload.create(config)
+download.setProgressCallback { snapshot ->
+    println("${snapshot.phase}: ${snapshot.downloadedBytes}/${snapshot.contentLen}")
+}
+download.start()
 ```
 
 Apple consumers use the SwiftPM package and prebuilt `Takanawa.xcframework`.
+
+```swift
+let download = try TakanawaDownload.create(config)
+try download.setProgressCallback { snapshot in
+  print("\(snapshot.phase): \(snapshot.downloadedBytes)/\(snapshot.contentLen)")
+}
+try download.start()
+```
+
+C ABI consumers can register a nullable `TknwProgressCallback` with
+`tknw_download_set_progress_callback`. Passing `NULL` clears the callback.
 
 ## Local Rustdoc
 

@@ -80,6 +80,10 @@ typedef struct TknwDownloadSnapshot {
   size_t active_io;
 } TknwDownloadSnapshot;
 
+typedef void (*TknwProgressCallback)(const struct TknwDownloadSnapshot *snapshot, void *context);
+
+typedef void (*TknwProgressCallbackRelease)(void *context);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -101,6 +105,11 @@ TknwStatus tknw_download_cancel(struct TknwDownload *download);
 
 TknwStatus tknw_download_snapshot(const struct TknwDownload *download,
                                   struct TknwDownloadSnapshot *snapshot);
+
+TknwStatus tknw_download_set_progress_callback(struct TknwDownload *download,
+                                               TknwProgressCallback callback,
+                                               void *context,
+                                               TknwProgressCallbackRelease context_release);
 
 TknwStatus tknw_download_copy_bitmap(const struct TknwDownload *download,
                                      unsigned char *buffer,

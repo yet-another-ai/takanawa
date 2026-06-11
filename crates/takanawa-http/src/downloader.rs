@@ -22,7 +22,7 @@ use tokio::task::JoinSet;
 
 use crate::content_range::{parse_content_range, parse_unsatisfied_total};
 use crate::limiter::IoLimiter;
-use crate::state::{DownloadSnapshot, SharedState};
+use crate::state::{DownloadSnapshot, ProgressCallback, SharedState};
 
 const DEFAULT_MAX_RETRIES: u32 = 4;
 const DEFAULT_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
@@ -262,6 +262,10 @@ impl DownloadHandle {
             self.state.mark_cancelled();
         }
         Ok(())
+    }
+
+    pub fn set_progress_callback(&self, callback: Option<ProgressCallback>) {
+        self.state.set_progress_callback(callback);
     }
 
     #[must_use]

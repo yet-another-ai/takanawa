@@ -3,7 +3,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::ffi::CStr;
-use std::os::raw::{c_char, c_uchar};
+use std::os::raw::{c_char, c_uchar, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::ptr;
@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use takanawa_core::{HashConfig, TakanawaError};
 use takanawa_http::{
-    DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase, RetryConfig,
-    TimeoutConfig,
+    DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase,
+    DownloadSnapshot, ProgressCallback, RetryConfig, TimeoutConfig,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -94,10 +94,33 @@ pub struct TknwDownloadSnapshot {
     pub active_io: usize,
 }
 
+pub type TknwProgressCallback =
+    Option<extern "C" fn(snapshot: *const TknwDownloadSnapshot, context: *mut c_void)>;
+pub type TknwProgressCallbackRelease = Option<extern "C" fn(context: *mut c_void)>;
+
 pub struct TknwDownload {
     global: Arc<GlobalRuntime>,
     inner: DownloadHandle,
     last_error: Mutex<Option<String>>,
+}
+
+struct CallbackContext {
+    context: usize,
+    release: TknwProgressCallbackRelease,
+}
+
+impl CallbackContext {
+    const fn ptr(&self) -> *mut c_void {
+        self.context as *mut c_void
+    }
+}
+
+impl Drop for CallbackContext {
+    fn drop(&mut self) {
+        if let Some(release) = self.release {
+            release(self.ptr());
+        }
+    }
 }
 
 struct GlobalRuntime {
@@ -264,13 +287,50 @@ pub extern "C" fn tknw_download_snapshot(
         )?;
 
         let current = download.inner.snapshot();
-        snapshot_ref.phase = phase_to_u32(current.phase);
-        snapshot_ref.content_len = current.content_len;
-        snapshot_ref.downloaded_bytes = current.downloaded_bytes;
-        snapshot_ref.chunk_size = current.chunk_size;
-        snapshot_ref.chunk_count = current.chunk_count;
-        snapshot_ref.completed_chunks = current.completed_chunks;
-        snapshot_ref.active_io = current.active_io;
+        *snapshot_ref = snapshot_to_ffi(&current);
+        Ok(TknwStatus::Ok)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn tknw_download_set_progress_callback(
+    download: *mut TknwDownload,
+    callback: TknwProgressCallback,
+    context: *mut c_void,
+    context_release: TknwProgressCallbackRelease,
+) -> TknwStatus {
+    ffi_boundary(|| {
+        if download.is_null() {
+            return Err(TakanawaError::NullPointer("download"));
+        }
+        // SAFETY: download was checked for null and is borrowed only for this call.
+        let download = unsafe { &*download };
+
+        let Some(callback) = callback else {
+            if !context.is_null() || context_release.is_some() {
+                let err =
+                    TakanawaError::InvalidConfig("callback context requires a callback".to_owned());
+                *download
+                    .last_error
+                    .lock()
+                    .expect("last error mutex poisoned") = Some(err.to_string());
+                return Err(err);
+            }
+            download.inner.set_progress_callback(None);
+            return Ok(TknwStatus::Ok);
+        };
+
+        let callback_context = CallbackContext {
+            context: context as usize,
+            release: context_release,
+        };
+        let progress_callback: ProgressCallback = Arc::new(move |snapshot| {
+            let native = snapshot_to_ffi(&snapshot);
+            callback(&raw const native, callback_context.ptr());
+        });
+        download
+            .inner
+            .set_progress_callback(Some(progress_callback));
         Ok(TknwStatus::Ok)
     })
 }
@@ -530,24 +590,45 @@ const fn phase_to_u32(phase: DownloadPhase) -> u32 {
     phase as u32
 }
 
+fn snapshot_to_ffi(snapshot: &DownloadSnapshot) -> TknwDownloadSnapshot {
+    TknwDownloadSnapshot {
+        abi_version: TKNW_ABI_VERSION,
+        struct_size: size_of::<TknwDownloadSnapshot>(),
+        phase: phase_to_u32(snapshot.phase),
+        content_len: snapshot.content_len,
+        downloaded_bytes: snapshot.downloaded_bytes,
+        chunk_size: snapshot.chunk_size,
+        chunk_count: snapshot.chunk_count,
+        completed_chunks: snapshot.completed_chunks,
+        active_io: snapshot.active_io,
+    }
+}
+
 #[cfg(feature = "jni")]
 mod android_jni {
     use std::ffi::CString;
+    use std::os::raw::c_void;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::ptr;
 
     use jni::JNIEnv;
+    use jni::JavaVM;
     use jni::errors::Error as JniError;
-    use jni::objects::{JByteArray, JClass, JLongArray, JString};
+    use jni::objects::{GlobalRef, JByteArray, JClass, JLongArray, JObject, JString, JValue};
     use jni::sys::{jbyte, jint, jlong, jstring};
 
     use super::{
         TKNW_ABI_VERSION, TknwDownload, TknwDownloadConfig, TknwDownloadSnapshot, TknwGlobalConfig,
         TknwHashKind, TknwStatus, tknw_download_cancel, tknw_download_copy_bitmap,
         tknw_download_create, tknw_download_last_error, tknw_download_pause, tknw_download_release,
-        tknw_download_snapshot, tknw_download_start, tknw_global_init, tknw_global_set_max_io,
-        tknw_global_shutdown,
+        tknw_download_set_progress_callback, tknw_download_snapshot, tknw_download_start,
+        tknw_global_init, tknw_global_set_max_io, tknw_global_shutdown,
     };
+
+    struct AndroidProgressCallback {
+        java_vm: JavaVM,
+        listener: GlobalRef,
+    }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_globalInit<'local>(
@@ -746,6 +827,51 @@ mod android_jni {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadSetProgressCallback<
+        'local,
+    >(
+        env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        handle: jlong,
+        listener: JObject<'local>,
+    ) -> jint {
+        jni_status(|| {
+            if listener.as_raw().is_null() {
+                return Ok(status_code(tknw_download_set_progress_callback(
+                    download_mut(handle),
+                    None,
+                    ptr::null_mut(),
+                    None,
+                )));
+            }
+
+            let java_vm = match env.get_java_vm() {
+                Ok(java_vm) => java_vm,
+                Err(_) => return Ok(status_code(TknwStatus::Internal)),
+            };
+            let listener = match env.new_global_ref(listener) {
+                Ok(listener) => listener,
+                Err(_) => return Ok(status_code(TknwStatus::Internal)),
+            };
+            let callback = Box::new(AndroidProgressCallback { java_vm, listener });
+            let context = Box::into_raw(callback).cast::<c_void>();
+            let status = tknw_download_set_progress_callback(
+                download_mut(handle),
+                Some(android_progress_callback),
+                context,
+                Some(release_android_progress_callback),
+            );
+            if status != TknwStatus::Ok {
+                // SAFETY: context was created by Box::into_raw immediately above.
+                unsafe {
+                    drop(Box::from_raw(context.cast::<AndroidProgressCallback>()));
+                }
+            }
+            Ok(status_code(status))
+        })
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadBitmapSize<'local>(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
@@ -875,6 +1001,85 @@ mod android_jni {
         }
     }
 
+    extern "C" fn android_progress_callback(
+        snapshot: *const TknwDownloadSnapshot,
+        context: *mut c_void,
+    ) {
+        if snapshot.is_null() || context.is_null() {
+            return;
+        }
+
+        // SAFETY: context is allocated by downloadSetProgressCallback and released by
+        // release_android_progress_callback after the native callback is unregistered.
+        let callback = unsafe { &*context.cast::<AndroidProgressCallback>() };
+        let Ok(mut env) = callback.java_vm.attach_current_thread() else {
+            return;
+        };
+        // SAFETY: snapshot is non-null and only read during this callback.
+        let snapshot = unsafe { &*snapshot };
+        let Ok(values) = snapshot_values(snapshot) else {
+            return;
+        };
+        let Ok(phase) = env
+            .call_static_method(
+                "ai/yetanother/takanawa/DownloadPhase",
+                "fromCode",
+                "(I)Lai/yetanother/takanawa/DownloadPhase;",
+                &[JValue::Int(snapshot.phase as jint)],
+            )
+            .and_then(|value| value.l())
+        else {
+            clear_exception(&mut env);
+            return;
+        };
+        let Ok(snapshot_object) = env.new_object(
+            "ai/yetanother/takanawa/DownloadSnapshot",
+            "(Lai/yetanother/takanawa/DownloadPhase;JJJJJI)V",
+            &[
+                JValue::Object(&phase),
+                JValue::Long(values[1]),
+                JValue::Long(values[2]),
+                JValue::Long(values[3]),
+                JValue::Long(values[4]),
+                JValue::Long(values[5]),
+                JValue::Int(match jint::try_from(values[6]) {
+                    Ok(value) => value,
+                    Err(_) => return,
+                }),
+            ],
+        ) else {
+            clear_exception(&mut env);
+            return;
+        };
+        if env
+            .call_method(
+                callback.listener.as_obj(),
+                "onProgress",
+                "(Lai/yetanother/takanawa/DownloadSnapshot;)V",
+                &[JValue::Object(&snapshot_object)],
+            )
+            .is_err()
+        {
+            clear_exception(&mut env);
+        }
+    }
+
+    extern "C" fn release_android_progress_callback(context: *mut c_void) {
+        if context.is_null() {
+            return;
+        }
+        // SAFETY: context was created by Box::into_raw in downloadSetProgressCallback.
+        unsafe {
+            drop(Box::from_raw(context.cast::<AndroidProgressCallback>()));
+        }
+    }
+
+    fn clear_exception(env: &mut JNIEnv<'_>) {
+        if env.exception_check().unwrap_or(false) {
+            let _ = env.exception_clear();
+        }
+    }
+
     fn jni_status(action: impl FnOnce() -> Result<jint, JniError>) -> jint {
         match catch_unwind(AssertUnwindSafe(action)) {
             Ok(Ok(status)) => status,
@@ -937,6 +1142,7 @@ mod android_jni {
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{LazyLock, Mutex};
 
     use tempfile::TempDir;
@@ -944,6 +1150,26 @@ mod tests {
     use super::*;
 
     static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    struct CallbackCounters {
+        calls: AtomicUsize,
+        releases: AtomicUsize,
+    }
+
+    extern "C" fn count_progress(snapshot: *const TknwDownloadSnapshot, context: *mut c_void) {
+        assert!(!snapshot.is_null());
+        assert!(!context.is_null());
+        // SAFETY: tests pass a valid CallbackCounters pointer for the registration lifetime.
+        let counters = unsafe { &*context.cast::<CallbackCounters>() };
+        counters.calls.fetch_add(1, Ordering::SeqCst);
+    }
+
+    extern "C" fn count_release(context: *mut c_void) {
+        assert!(!context.is_null());
+        // SAFETY: tests pass a valid CallbackCounters pointer for the registration lifetime.
+        let counters = unsafe { &*context.cast::<CallbackCounters>() };
+        counters.releases.fetch_add(1, Ordering::SeqCst);
+    }
 
     #[test]
     fn creates_snapshots_and_releases_handle() {
@@ -1001,6 +1227,26 @@ mod tests {
             TknwStatus::Ok
         );
         assert_eq!(snapshot.phase, DownloadPhase::Created as u32);
+
+        let counters = CallbackCounters {
+            calls: AtomicUsize::new(0),
+            releases: AtomicUsize::new(0),
+        };
+        assert_eq!(
+            tknw_download_set_progress_callback(
+                handle,
+                Some(count_progress),
+                (&raw const counters).cast_mut().cast::<c_void>(),
+                Some(count_release),
+            ),
+            TknwStatus::Ok
+        );
+        assert_eq!(counters.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            tknw_download_set_progress_callback(handle, None, ptr::null_mut(), None),
+            TknwStatus::Ok
+        );
+        assert_eq!(counters.releases.load(Ordering::SeqCst), 1);
 
         assert_eq!(tknw_download_release(&raw mut handle), TknwStatus::Ok);
         assert!(handle.is_null());

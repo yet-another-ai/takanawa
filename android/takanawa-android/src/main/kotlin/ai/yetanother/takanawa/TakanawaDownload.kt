@@ -32,6 +32,14 @@ class TakanawaDownload internal constructor(handle: Long) : Closeable {
         )
     }
 
+    fun setProgressCallback(listener: DownloadProgressListener?) {
+        withHandle { checkStatus(NativeBridge.downloadSetProgressCallback(it, listener), it) }
+    }
+
+    fun clearProgressCallback() {
+        setProgressCallback(null)
+    }
+
     fun copyBitmap(): ByteArray = withHandle { currentHandle ->
         val size = LongArray(1)
         checkStatus(NativeBridge.downloadBitmapSize(currentHandle, size), currentHandle)
@@ -48,7 +56,9 @@ class TakanawaDownload internal constructor(handle: Long) : Closeable {
     override fun close() {
         val currentHandle = handle.getAndSet(CLOSED_HANDLE)
         if (currentHandle != CLOSED_HANDLE) {
-            checkStatus(NativeBridge.downloadRelease(currentHandle))
+            val clearStatus = NativeBridge.downloadSetProgressCallback(currentHandle, null)
+            val releaseStatus = NativeBridge.downloadRelease(currentHandle)
+            checkStatus(if (clearStatus == 0) releaseStatus else clearStatus)
         }
     }
 

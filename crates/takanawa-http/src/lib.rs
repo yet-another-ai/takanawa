@@ -10,4 +10,4 @@ pub use downloader::{
     download_to_completion,
 };
 pub use limiter::{DEFAULT_MAX_IO, IoLimiter};
-pub use state::{DownloadPhase, DownloadSnapshot};
+pub use state::{DownloadPhase, DownloadSnapshot, ProgressCallback};

@@ -163,6 +163,34 @@ public final class TakanawaDownload {
     return DownloadSnapshot(native)
   }
 
+  public func setProgressCallback(_ callback: (@Sendable (DownloadSnapshot) -> Void)?) throws {
+    let currentHandle = try openHandle()
+    try clearProgressCallback(for: currentHandle)
+
+    guard let callback else {
+      return
+    }
+
+    let box = ProgressCallbackBox(callback)
+    let context = Unmanaged.passRetained(box).toOpaque()
+    let status = tknw_download_set_progress_callback(
+      currentHandle,
+      progressCallbackTrampoline,
+      context,
+      progressCallbackRelease
+    )
+    do {
+      try TakanawaError.check(status, handle: currentHandle)
+    } catch {
+      Unmanaged<ProgressCallbackBox>.fromOpaque(context).release()
+      throw error
+    }
+  }
+
+  public func clearProgressCallback() throws {
+    try clearProgressCallback(for: openHandle())
+  }
+
   public func copyBitmap() throws -> Data {
     let currentHandle = try openHandle()
     var written = 0
@@ -193,9 +221,10 @@ public final class TakanawaDownload {
   }
 
   public func close() throws {
-    guard handle != nil else {
+    guard let currentHandle = handle else {
       return
     }
+    try clearProgressCallback(for: currentHandle)
     try TakanawaError.check(tknw_download_release(&handle))
   }
 
@@ -207,10 +236,20 @@ public final class TakanawaDownload {
   }
 
   private func releaseIgnoringErrors() {
-    guard handle != nil else {
+    guard let currentHandle = handle else {
       return
     }
+    clearProgressCallbackIgnoringErrors(for: currentHandle)
     _ = tknw_download_release(&handle)
+  }
+
+  private func clearProgressCallback(for currentHandle: OpaquePointer) throws {
+    let status = tknw_download_set_progress_callback(currentHandle, nil, nil, nil)
+    try TakanawaError.check(status, handle: currentHandle)
+  }
+
+  private func clearProgressCallbackIgnoringErrors(for currentHandle: OpaquePointer) {
+    _ = tknw_download_set_progress_callback(currentHandle, nil, nil, nil)
   }
 }
 
@@ -241,6 +280,8 @@ public enum DownloadPhase: UInt32, Sendable {
   case cancelled = 3
   case completed = 4
   case failed = 5
+  case pausing = 6
+  case cancelling = 7
 }
 
 public enum TakanawaError: Error, Sendable, Equatable, CustomStringConvertible {
@@ -411,6 +452,34 @@ private func lastErrorMessage(for handle: OpaquePointer?) -> String? {
     return nil
   }
   return String(cString: buffer)
+}
+
+private final class ProgressCallbackBox {
+  let callback: @Sendable (DownloadSnapshot) -> Void
+
+  init(_ callback: @Sendable @escaping (DownloadSnapshot) -> Void) {
+    self.callback = callback
+  }
+}
+
+private let progressCallbackTrampoline:
+  @convention(c) (UnsafePointer<TknwDownloadSnapshot>?, UnsafeMutableRawPointer?) -> Void = {
+    snapshotPointer,
+    context in
+    guard let snapshotPointer, let context else {
+      return
+    }
+
+    let box = Unmanaged<ProgressCallbackBox>.fromOpaque(context).takeUnretainedValue()
+    box.callback(DownloadSnapshot(snapshotPointer.pointee))
+  }
+
+private let progressCallbackRelease: @convention(c) (UnsafeMutableRawPointer?) -> Void = { context in
+  guard let context else {
+    return
+  }
+
+  Unmanaged<ProgressCallbackBox>.fromOpaque(context).release()
 }
 
 private func takanawaStatusCode<Status>(_ status: Status) -> Int32 {

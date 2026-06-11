@@ -45,6 +45,12 @@ internal object NativeBridge {
     external fun downloadSnapshot(handle: Long, outSnapshot: LongArray): Int
 
     @JvmStatic
+    external fun downloadSetProgressCallback(
+        handle: Long,
+        listener: DownloadProgressListener?,
+    ): Int
+
+    @JvmStatic
     external fun downloadBitmapSize(handle: Long, outSize: LongArray): Int
 
     @JvmStatic
