@@ -22,7 +22,13 @@ Metadata includes:
 - ETag and Last-Modified snapshots
 - expected hash configuration
 
-The writer commits one chunk at a time:
+The writer may stream bytes into the content area before a chunk is complete.
+Those bytes are intentionally not durable resume state yet: a chunk is
+recoverable only after its bitmap bit is committed in metadata. If a process
+crashes while a chunk is partially written, the next run treats that chunk as
+incomplete and downloads it again, overwriting any partial content bytes.
+
+The writer commits one completed chunk at a time:
 
 1. write chunk bytes at the content offset
 2. `sync_data`

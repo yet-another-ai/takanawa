@@ -118,8 +118,44 @@ impl PartFile {
             return Ok(());
         }
 
-        self.file.seek(SeekFrom::Start(chunk.start))?;
+        self.write_chunk_bytes(index, 0, bytes)?;
+        self.commit_chunk(index)
+    }
+
+    pub fn write_chunk_bytes(&mut self, index: u64, chunk_offset: u64, bytes: &[u8]) -> Result<()> {
+        let plan = ChunkPlan::new(self.metadata.content_len, self.metadata.chunk_size)?;
+        let chunk = plan.chunk(index)?;
+        let len = u64::try_from(bytes.len()).map_err(|_| {
+            TakanawaError::InvalidConfig(format!(
+                "chunk {index} write length does not fit in file offsets"
+            ))
+        })?;
+        let end = chunk_offset.checked_add(len).ok_or_else(|| {
+            TakanawaError::InvalidConfig(format!("chunk {index} write offset overflow"))
+        })?;
+        if end > chunk.len {
+            return Err(TakanawaError::InvalidConfig(format!(
+                "chunk {index} write range {chunk_offset}..{end} exceeds chunk length {}",
+                chunk.len
+            )));
+        }
+        if bytes.is_empty() || self.metadata.bitmap.is_complete(index)? {
+            return Ok(());
+        }
+
+        self.file
+            .seek(SeekFrom::Start(chunk.start + chunk_offset))?;
         self.file.write_all(bytes)?;
+        Ok(())
+    }
+
+    pub fn commit_chunk(&mut self, index: u64) -> Result<()> {
+        let plan = ChunkPlan::new(self.metadata.content_len, self.metadata.chunk_size)?;
+        let _chunk = plan.chunk(index)?;
+        if self.metadata.bitmap.is_complete(index)? {
+            return Ok(());
+        }
+
         self.file.sync_data()?;
 
         self.metadata.bitmap.mark_complete(index)?;
@@ -190,12 +226,14 @@ impl PartFile {
     }
 }
 
+#[must_use]
 pub fn part_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part");
     PathBuf::from(value)
 }
 
+#[must_use]
 pub fn part_lock_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part.lock");
@@ -298,6 +336,74 @@ mod tests {
 
         assert_eq!(part.metadata().completed_chunks(), 1);
         assert_eq!(part.incomplete_chunks(), vec![1]);
+    }
+
+    #[test]
+    fn partial_chunk_write_is_not_committed_on_reopen() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("file.bin");
+        {
+            let mut part = PartFile::open_or_create(
+                &target,
+                "https://example.test/file",
+                &remote(6),
+                3,
+                HashConfig::None,
+            )
+            .unwrap();
+            part.write_chunk_bytes(0, 0, b"ab").unwrap();
+        }
+
+        let part = PartFile::open_or_create(
+            &target,
+            "https://example.test/file",
+            &remote(6),
+            3,
+            HashConfig::None,
+        )
+        .unwrap();
+
+        assert_eq!(part.metadata().completed_chunks(), 0);
+        assert_eq!(part.incomplete_chunks(), vec![0, 1]);
+    }
+
+    #[test]
+    fn partial_chunk_can_be_overwritten_and_committed() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("file.bin");
+        let mut part = PartFile::open_or_create(
+            &target,
+            "https://example.test/file",
+            &remote(6),
+            3,
+            HashConfig::None,
+        )
+        .unwrap();
+        part.write_chunk_bytes(0, 0, b"xx").unwrap();
+        part.write_chunk_bytes(0, 0, b"abc").unwrap();
+        part.commit_chunk(0).unwrap();
+        part.write_chunk(1, b"def").unwrap();
+        part.finalize(&target).unwrap();
+
+        assert_eq!(fs::read(&target).unwrap(), b"abcdef");
+    }
+
+    #[test]
+    fn partial_chunk_write_rejects_out_of_bounds_ranges() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("file.bin");
+        let mut part = PartFile::open_or_create(
+            &target,
+            "https://example.test/file",
+            &remote(6),
+            3,
+            HashConfig::None,
+        )
+        .unwrap();
+
+        let err = part.write_chunk_bytes(0, 2, b"bc").unwrap_err();
+
+        assert!(matches!(err, TakanawaError::InvalidConfig(_)));
     }
 
     #[test]

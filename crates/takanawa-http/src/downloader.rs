@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use bytes::Bytes;
 use futures_util::StreamExt;
 use reqwest::header::{
     ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, ETAG, HeaderMap,
@@ -12,9 +13,11 @@ use reqwest::header::{
 };
 use reqwest::{Client, StatusCode};
 use takanawa_core::{
-    Chunk, ChunkPlan, DEFAULT_CHUNK_SIZE, HashConfig, PartFile, RemoteInfo, Result, TakanawaError,
+    Chunk, ChunkPlan, DEFAULT_CHUNK_SIZE, HashConfig, PartFile, PartMetadata, RemoteInfo, Result,
+    TakanawaError,
 };
 use tokio::runtime::Runtime;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinSet;
 
 use crate::content_range::{parse_content_range, parse_unsatisfied_total};
@@ -25,6 +28,7 @@ const DEFAULT_MAX_RETRIES: u32 = 4;
 const DEFAULT_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
 const DEFAULT_BACKOFF_MAX: Duration = Duration::from_secs(3);
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const WRITE_QUEUE_DEPTH_PER_CHUNK: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct DownloadConfig {
@@ -295,6 +299,7 @@ pub async fn download_to_completion(
     Ok(state.snapshot())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_download(
     engine: DownloadEngine,
     config: DownloadConfig,
@@ -312,7 +317,7 @@ async fn run_download(
     let hash = config.hash;
     let chunk_size = config.chunk_size;
 
-    let mut part = tokio::task::spawn_blocking(move || {
+    let part = tokio::task::spawn_blocking(move || {
         PartFile::open_or_create(&target_path, &url, &remote, chunk_size, hash)
     })
     .await
@@ -335,15 +340,22 @@ async fn run_download(
     } else {
         requested_parallelism.max(1)
     };
+    let writer_capacity = parallelism
+        .max(1)
+        .saturating_mul(WRITE_QUEUE_DEPTH_PER_CHUNK);
+    let (writer_tx, writer_join) = spawn_part_writer(part, writer_capacity);
     let mut tasks = JoinSet::new();
 
     loop {
         if control.cancel.load(Ordering::Relaxed) {
+            tasks.shutdown().await;
+            let _part = finish_part_writer(writer_tx, writer_join).await?;
             state.mark_cancelled();
             return Err(TakanawaError::Cancelled);
         }
         if control.pause.load(Ordering::Relaxed) {
-            tasks.abort_all();
+            tasks.shutdown().await;
+            let _part = finish_part_writer(writer_tx, writer_join).await?;
             state.mark_paused();
             return Ok(());
         }
@@ -361,11 +373,13 @@ async fn run_download(
             let state = state.clone();
             let control = Arc::clone(&control);
             let bandwidth = Arc::clone(&bandwidth);
+            let writer_tx = writer_tx.clone();
             tasks.spawn(async move {
-                let data =
-                    fetch_chunk_with_retry(&engine, &config, chunk, &state, &control, &bandwidth)
-                        .await?;
-                Ok::<_, TakanawaError>((index, data))
+                let result = fetch_chunk_with_retry(
+                    &engine, &config, chunk, &state, &control, &bandwidth, &writer_tx,
+                )
+                .await?;
+                Ok::<_, TakanawaError>(result)
             });
         }
 
@@ -376,26 +390,42 @@ async fn run_download(
         let Some(result) = tasks.join_next().await else {
             break;
         };
-        if control.pause.load(Ordering::Relaxed) {
-            tasks.abort_all();
-            state.mark_paused();
-            return Ok(());
+        let task_result = match result {
+            Ok(Ok(task_result)) => task_result,
+            Ok(Err(err)) => {
+                tasks.shutdown().await;
+                let err = finish_part_writer_after_error(writer_tx, writer_join, err).await;
+                return Err(err);
+            }
+            Err(err) => {
+                tasks.shutdown().await;
+                let err = finish_part_writer_after_error(
+                    writer_tx,
+                    writer_join,
+                    TakanawaError::Ffi(format!("download task failed: {err}")),
+                )
+                .await;
+                return Err(err);
+            }
+        };
+        match task_result {
+            ChunkTaskResult::Committed(metadata) => state.update_from_metadata(&metadata),
+            ChunkTaskResult::Paused => {
+                tasks.shutdown().await;
+                let _part = finish_part_writer(writer_tx, writer_join).await?;
+                state.mark_paused();
+                return Ok(());
+            }
         }
-        let (index, data) =
-            result.map_err(|err| TakanawaError::Ffi(format!("download task failed: {err}")))??;
-        part = tokio::task::spawn_blocking(move || {
-            part.write_chunk(index, &data)?;
-            Ok::<_, TakanawaError>(part)
-        })
-        .await
-        .map_err(|err| TakanawaError::Ffi(format!("writer task failed: {err}")))??;
-        state.update_from_metadata(part.metadata());
 
         if control.pause.load(Ordering::Relaxed) && tasks.is_empty() {
+            let _part = finish_part_writer(writer_tx, writer_join).await?;
             state.mark_paused();
             return Ok(());
         }
     }
+
+    let part = finish_part_writer(writer_tx, writer_join).await?;
 
     if control.pause.load(Ordering::Relaxed) && !part.metadata().all_complete() {
         state.mark_paused();
@@ -403,6 +433,89 @@ async fn run_download(
     }
 
     finalize_part(part, &config, &state).await
+}
+
+enum ChunkTaskResult {
+    Committed(PartMetadata),
+    Paused,
+}
+
+enum FetchChunkStatus {
+    Complete,
+    Paused,
+}
+
+enum WriterCommand {
+    Write {
+        index: u64,
+        chunk_offset: u64,
+        bytes: Bytes,
+    },
+    Commit {
+        index: u64,
+        result: oneshot::Sender<Result<PartMetadata>>,
+    },
+}
+
+fn spawn_part_writer(
+    part: PartFile,
+    capacity: usize,
+) -> (
+    mpsc::Sender<WriterCommand>,
+    tokio::task::JoinHandle<Result<PartFile>>,
+) {
+    let (writer_tx, mut writer_rx) = mpsc::channel(capacity.max(1));
+    let writer_join = tokio::task::spawn_blocking(move || {
+        let mut part = part;
+        while let Some(command) = writer_rx.blocking_recv() {
+            match command {
+                WriterCommand::Write {
+                    index,
+                    chunk_offset,
+                    bytes,
+                } => {
+                    part.write_chunk_bytes(index, chunk_offset, &bytes)?;
+                }
+                WriterCommand::Commit { index, result } => {
+                    let metadata = match part.commit_chunk(index) {
+                        Ok(()) => part.metadata().clone(),
+                        Err(err) => {
+                            let message = err.to_string();
+                            let _ = result.send(Err(err));
+                            return Err(TakanawaError::Ffi(format!(
+                                "part writer commit failed: {message}"
+                            )));
+                        }
+                    };
+                    let _ = result.send(Ok(metadata));
+                }
+            }
+        }
+        Ok(part)
+    });
+    (writer_tx, writer_join)
+}
+
+async fn finish_part_writer(
+    writer_tx: mpsc::Sender<WriterCommand>,
+    writer_join: tokio::task::JoinHandle<Result<PartFile>>,
+) -> Result<PartFile> {
+    drop(writer_tx);
+    writer_join
+        .await
+        .map_err(|err| TakanawaError::Ffi(format!("part writer task failed: {err}")))?
+}
+
+async fn finish_part_writer_after_error(
+    writer_tx: mpsc::Sender<WriterCommand>,
+    writer_join: tokio::task::JoinHandle<Result<PartFile>>,
+    err: TakanawaError,
+) -> TakanawaError {
+    match finish_part_writer(writer_tx, writer_join).await {
+        Err(writer_err) if matches!(err, TakanawaError::Ffi(_)) => writer_err,
+        Ok(_) | Err(TakanawaError::Ffi(_)) => err,
+        Err(writer_err) => writer_err,
+    }
 }
 
 async fn finalize_part(part: PartFile, config: &DownloadConfig, state: &SharedState) -> Result<()> {
@@ -448,20 +561,42 @@ async fn fetch_chunk_with_retry(
     state: &SharedState,
     control: &Control,
     bandwidth: &BandwidthLimiter,
-) -> Result<Vec<u8>> {
+    writer_tx: &mpsc::Sender<WriterCommand>,
+) -> Result<ChunkTaskResult> {
     let retry = config.retry.normalized();
     let mut delay = retry.backoff_initial;
     for attempt in 1..=retry.max_attempts() {
         if control.cancel.load(Ordering::Relaxed) {
             return Err(TakanawaError::Cancelled);
         }
+        if control.pause.load(Ordering::Relaxed) {
+            return Ok(ChunkTaskResult::Paused);
+        }
         match with_total_timeout(
             config.timeout.total,
-            fetch_chunk_once(engine, &config.url, chunk, state, bandwidth),
+            fetch_chunk_once(
+                engine,
+                &config.url,
+                chunk,
+                state,
+                control,
+                bandwidth,
+                writer_tx,
+            ),
         )
         .await
         {
-            Ok(data) => return Ok(data),
+            Ok(FetchChunkStatus::Complete) => {
+                if control.cancel.load(Ordering::Relaxed) {
+                    return Err(TakanawaError::Cancelled);
+                }
+                if control.pause.load(Ordering::Relaxed) {
+                    return Ok(ChunkTaskResult::Paused);
+                }
+                let metadata = commit_written_chunk(writer_tx, chunk.index).await?;
+                return Ok(ChunkTaskResult::Committed(metadata));
+            }
+            Ok(FetchChunkStatus::Paused) => return Ok(ChunkTaskResult::Paused),
             Err(err) if err.is_retryable() && attempt < retry.max_attempts() => {
                 tokio::time::sleep(delay).await;
                 delay = (delay * 2).min(retry.backoff_max);
@@ -541,8 +676,10 @@ async fn fetch_chunk_once(
     url: &str,
     chunk: Chunk,
     state: &SharedState,
+    control: &Control,
     bandwidth: &BandwidthLimiter,
-) -> Result<Vec<u8>> {
+    writer_tx: &mpsc::Sender<WriterCommand>,
+) -> Result<FetchChunkStatus> {
     let _permit = engine.limiter.acquire().await;
     let _active_io = ActiveIoGuard::new(state.clone());
     let response = engine
@@ -564,41 +701,89 @@ async fn fetch_chunk_once(
             chunk.index, chunk.len
         )));
     }
-    let body = read_limited_body(response, chunk.len, bandwidth).await?;
-    if body.len() != usize::try_from(chunk.len).unwrap_or(usize::MAX) {
-        return Err(TakanawaError::HttpProtocol(format!(
-            "chunk {} body length mismatch: expected {}, got {}",
-            chunk.index,
-            chunk.len,
-            body.len()
-        )));
-    }
-    Ok(body)
+    stream_body_to_writer(response, chunk, control, bandwidth, writer_tx).await
 }
 
-async fn read_limited_body(
+async fn stream_body_to_writer(
     response: reqwest::Response,
-    expected_len: u64,
+    chunk: Chunk,
+    control: &Control,
     bandwidth: &BandwidthLimiter,
-) -> Result<Vec<u8>> {
-    let capacity = usize::try_from(expected_len).map_err(|_| {
-        TakanawaError::HttpProtocol(format!(
-            "body length {expected_len} does not fit in memory on this platform"
-        ))
-    })?;
-    let mut body = Vec::with_capacity(capacity);
+    writer_tx: &mpsc::Sender<WriterCommand>,
+) -> Result<FetchChunkStatus> {
+    let mut written = 0_u64;
     let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(map_reqwest_error)?;
-        bandwidth.throttle(chunk.len()).await;
-        body.extend_from_slice(&chunk);
-        if body.len() > capacity {
+    while let Some(bytes) = stream.next().await {
+        if control.cancel.load(Ordering::Relaxed) {
+            return Err(TakanawaError::Cancelled);
+        }
+        if control.pause.load(Ordering::Relaxed) {
+            return Ok(FetchChunkStatus::Paused);
+        }
+        let bytes = bytes.map_err(map_reqwest_error)?;
+        if bytes.is_empty() {
+            continue;
+        }
+        let len = u64::try_from(bytes.len()).map_err(|_| {
+            TakanawaError::HttpProtocol(format!(
+                "chunk {} body fragment length does not fit in file offsets",
+                chunk.index
+            ))
+        })?;
+        let next_written = written.checked_add(len).ok_or_else(|| {
+            TakanawaError::HttpProtocol(format!("chunk {} body length overflow", chunk.index))
+        })?;
+        if next_written > chunk.len {
             return Err(TakanawaError::HttpProtocol(format!(
-                "body length exceeded expected {expected_len} bytes"
+                "chunk {} body length exceeded expected {} bytes",
+                chunk.index, chunk.len
             )));
         }
+        bandwidth.throttle(bytes.len()).await;
+        send_writer_write(writer_tx, chunk.index, written, bytes).await?;
+        written = next_written;
     }
-    Ok(body)
+
+    if written != chunk.len {
+        return Err(TakanawaError::HttpProtocol(format!(
+            "chunk {} body length mismatch: expected {}, got {}",
+            chunk.index, chunk.len, written
+        )));
+    }
+    Ok(FetchChunkStatus::Complete)
+}
+
+async fn send_writer_write(
+    writer_tx: &mpsc::Sender<WriterCommand>,
+    index: u64,
+    chunk_offset: u64,
+    bytes: Bytes,
+) -> Result<()> {
+    writer_tx
+        .send(WriterCommand::Write {
+            index,
+            chunk_offset,
+            bytes,
+        })
+        .await
+        .map_err(|_| TakanawaError::Ffi("part writer stopped before write".to_owned()))
+}
+
+async fn commit_written_chunk(
+    writer_tx: &mpsc::Sender<WriterCommand>,
+    index: u64,
+) -> Result<PartMetadata> {
+    let (result_tx, result_rx) = oneshot::channel();
+    writer_tx
+        .send(WriterCommand::Commit {
+            index,
+            result: result_tx,
+        })
+        .await
+        .map_err(|_| TakanawaError::Ffi("part writer stopped before commit".to_owned()))?;
+    result_rx
+        .await
+        .map_err(|_| TakanawaError::Ffi("part writer stopped during commit".to_owned()))?
 }
 
 async fn with_total_timeout<T>(
@@ -734,7 +919,8 @@ fn header_to_string(
 
 #[allow(clippy::needless_pass_by_value)]
 fn map_reqwest_error(err: reqwest::Error) -> TakanawaError {
-    if err.is_timeout() || err.is_connect() || err.is_request() || err.is_body() {
+    if err.is_timeout() || err.is_connect() || err.is_request() || err.is_body() || err.is_decode()
+    {
         TakanawaError::Network(err.to_string())
     } else {
         TakanawaError::HttpProtocol(err.to_string())
@@ -863,6 +1049,35 @@ mod tests {
         assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
     }
 
+    #[tokio::test]
+    async fn retries_after_partial_stream_write() {
+        let data = Arc::new(b"abcdefghij".to_vec());
+        let addr = spawn_truncated_once_server(Arc::clone(&data), 2);
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("out.bin");
+        let engine = DownloadEngine::new(DEFAULT_MAX_IO).unwrap();
+        let config = DownloadConfig {
+            url: format!("http://{addr}/file"),
+            target_path: target.clone(),
+            chunk_size: 5,
+            parallelism: 1,
+            max_parallel_chunks: 0,
+            retry: RetryConfig {
+                max_retries: 1,
+                backoff_initial: Duration::from_millis(1),
+                backoff_max: Duration::from_millis(1),
+            },
+            timeout: TimeoutConfig::default(),
+            bytes_per_second_limit: 0,
+            hash: HashConfig::None,
+        };
+
+        let snapshot = download_to_completion(engine, config).await.unwrap();
+
+        assert_eq!(snapshot.phase, DownloadPhase::Completed);
+        assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
+    }
+
     #[test]
     fn pause_discards_in_flight_chunk() {
         let data = Arc::new(b"abcdefghij".to_vec());
@@ -894,6 +1109,45 @@ mod tests {
 
         assert_eq!(snapshot.completed_chunks, 0);
         assert_eq!(snapshot.downloaded_bytes, 0);
+    }
+
+    #[test]
+    fn pause_mid_stream_discards_uncommitted_bytes_and_resume_completes() {
+        let data = Arc::new(b"abcdefghij".to_vec());
+        let addr = spawn_split_body_server(Arc::clone(&data), 2, Duration::from_millis(300));
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("out.bin");
+        let engine = DownloadEngine::new(DEFAULT_MAX_IO).unwrap();
+        let runtime = Runtime::new().unwrap();
+        let download = DownloadHandle::new(
+            engine,
+            DownloadConfig {
+                url: format!("http://{addr}/file"),
+                target_path: target.clone(),
+                chunk_size: 5,
+                parallelism: 1,
+                max_parallel_chunks: 0,
+                retry: RetryConfig::default(),
+                timeout: TimeoutConfig::default(),
+                bytes_per_second_limit: 0,
+                hash: HashConfig::None,
+            },
+        );
+
+        download.start_on(&runtime).unwrap();
+        thread::sleep(Duration::from_millis(100));
+        download.pause().unwrap();
+
+        let snapshot = wait_for_phase(&download, DownloadPhase::Paused);
+
+        assert_eq!(snapshot.completed_chunks, 0);
+        assert_eq!(snapshot.downloaded_bytes, 0);
+
+        download.start_on(&runtime).unwrap();
+        let snapshot = wait_for_phase(&download, DownloadPhase::Completed);
+
+        assert_eq!(snapshot.phase, DownloadPhase::Completed);
+        assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
     }
 
     #[tokio::test]
@@ -986,6 +1240,48 @@ mod tests {
         spawn_range_server_with_chunk_delay(data, false, Some(delay))
     }
 
+    fn spawn_split_body_server(
+        data: Arc<Vec<u8>>,
+        first_body_bytes: usize,
+        delay: Duration,
+    ) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let data = Arc::clone(&data);
+                thread::spawn(move || {
+                    handle_split_body_connection(stream, &data, first_body_bytes, delay);
+                });
+            }
+        });
+        addr
+    }
+
+    fn spawn_truncated_once_server(
+        data: Arc<Vec<u8>>,
+        body_bytes_before_close: usize,
+    ) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let truncated = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let data = Arc::clone(&data);
+                let truncated = Arc::clone(&truncated);
+                thread::spawn(move || {
+                    handle_truncated_once_connection(
+                        stream,
+                        &data,
+                        body_bytes_before_close,
+                        &truncated,
+                    );
+                });
+            }
+        });
+        addr
+    }
+
     fn spawn_range_server_with_chunk_delay(
         data: Arc<Vec<u8>>,
         ignore_range: bool,
@@ -1011,14 +1307,7 @@ mod tests {
         let mut buffer = [0; 4096];
         let read = stream.read(&mut buffer).unwrap_or(0);
         let request = String::from_utf8_lossy(&buffer[..read]);
-        let range = request.lines().find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            if name.eq_ignore_ascii_case("range") {
-                value.trim().strip_prefix("bytes=")
-            } else {
-                None
-            }
-        });
+        let range = request_range(&request);
 
         if ignore_range {
             let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", data.len());
@@ -1027,20 +1316,12 @@ mod tests {
             return;
         }
 
-        let Some(range) = range else {
+        let Some((start, end)) = range else {
             stream
                 .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
             return;
         };
-        let Some((start, end)) = range.split_once('-') else {
-            stream
-                .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n")
-                .unwrap();
-            return;
-        };
-        let start = start.parse::<usize>().unwrap();
-        let end = end.parse::<usize>().unwrap();
         if start >= data.len() {
             let response = format!(
                 "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\n\r\n",
@@ -1065,8 +1346,105 @@ mod tests {
         stream.write_all(body).unwrap();
     }
 
+    fn handle_split_body_connection(
+        mut stream: std::net::TcpStream,
+        data: &[u8],
+        first_body_bytes: usize,
+        delay: Duration,
+    ) {
+        let Some((start, end)) = read_request_range(&mut stream) else {
+            let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            return;
+        };
+        let Some(body) = range_body(data, start, end, &mut stream) else {
+            return;
+        };
+        let response = format!(
+            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{}\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\n\r\n",
+            start + body.len() - 1,
+            data.len(),
+            body.len()
+        );
+        let _ = stream.write_all(response.as_bytes());
+        if body.len() <= 1 {
+            let _ = stream.write_all(body);
+            return;
+        }
+        let split_at = first_body_bytes.clamp(1, body.len());
+        let _ = stream.write_all(&body[..split_at]);
+        let _ = stream.flush();
+        thread::sleep(delay);
+        let _ = stream.write_all(&body[split_at..]);
+    }
+
+    fn handle_truncated_once_connection(
+        mut stream: std::net::TcpStream,
+        data: &[u8],
+        body_bytes_before_close: usize,
+        truncated: &std::sync::atomic::AtomicBool,
+    ) {
+        let Some((start, end)) = read_request_range(&mut stream) else {
+            let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            return;
+        };
+        let Some(body) = range_body(data, start, end, &mut stream) else {
+            return;
+        };
+        let response = format!(
+            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{}\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\n\r\n",
+            start + body.len() - 1,
+            data.len(),
+            body.len()
+        );
+        let _ = stream.write_all(response.as_bytes());
+        if body.len() > 1 && !truncated.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            let end = body_bytes_before_close.min(body.len());
+            let _ = stream.write_all(&body[..end]);
+            return;
+        }
+        let _ = stream.write_all(body);
+    }
+
+    fn read_request_range(stream: &mut std::net::TcpStream) -> Option<(usize, usize)> {
+        let mut buffer = [0; 4096];
+        let read = stream.read(&mut buffer).ok()?;
+        let request = String::from_utf8_lossy(&buffer[..read]);
+        request_range(&request)
+    }
+
+    fn request_range(request: &str) -> Option<(usize, usize)> {
+        let range = request.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("range") {
+                value.trim().strip_prefix("bytes=")
+            } else {
+                None
+            }
+        })?;
+        let (start, end) = range.split_once('-')?;
+        Some((start.parse().ok()?, end.parse().ok()?))
+    }
+
+    fn range_body<'a>(
+        data: &'a [u8],
+        start: usize,
+        end: usize,
+        stream: &mut std::net::TcpStream,
+    ) -> Option<&'a [u8]> {
+        if start >= data.len() {
+            let response = format!(
+                "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\n\r\n",
+                data.len()
+            );
+            let _ = stream.write_all(response.as_bytes());
+            return None;
+        }
+        let end = end.min(data.len() - 1);
+        Some(&data[start..=end])
+    }
+
     fn wait_for_phase(download: &DownloadHandle, phase: DownloadPhase) -> DownloadSnapshot {
-        for _ in 0..50 {
+        for _ in 0..100 {
             let snapshot = download.snapshot();
             if snapshot.phase == phase {
                 return snapshot;
