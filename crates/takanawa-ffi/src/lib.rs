@@ -845,13 +845,11 @@ mod android_jni {
                 )));
             }
 
-            let java_vm = match env.get_java_vm() {
-                Ok(java_vm) => java_vm,
-                Err(_) => return Ok(status_code(TknwStatus::Internal)),
+            let Ok(java_vm) = env.get_java_vm() else {
+                return Ok(status_code(TknwStatus::Internal));
             };
-            let listener = match env.new_global_ref(listener) {
-                Ok(listener) => listener,
-                Err(_) => return Ok(status_code(TknwStatus::Internal)),
+            let Ok(listener) = env.new_global_ref(listener) else {
+                return Ok(status_code(TknwStatus::Internal));
             };
             let callback = Box::new(AndroidProgressCallback { java_vm, listener });
             let context = Box::into_raw(callback).cast::<c_void>();
@@ -1020,14 +1018,17 @@ mod android_jni {
         let Ok(values) = snapshot_values(snapshot) else {
             return;
         };
+        let Ok(phase_code) = jint::try_from(snapshot.phase) else {
+            return;
+        };
         let Ok(phase) = env
             .call_static_method(
                 "ai/yetanother/takanawa/DownloadPhase",
                 "fromCode",
                 "(I)Lai/yetanother/takanawa/DownloadPhase;",
-                &[JValue::Int(snapshot.phase as jint)],
+                &[JValue::Int(phase_code)],
             )
-            .and_then(|value| value.l())
+            .and_then(jni::objects::JValueGen::l)
         else {
             clear_exception(&mut env);
             return;
