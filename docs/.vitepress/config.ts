@@ -19,6 +19,7 @@ export default defineConfig({
           { text: 'Overview', link: '/' },
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Platforms', link: '/guide/platforms' },
+          { text: 'C and C++', link: '/guide/c-cpp' },
         ],
       },
       {

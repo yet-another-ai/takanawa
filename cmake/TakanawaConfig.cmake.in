@@ -1,0 +1,46 @@
+@PACKAGE_INIT@
+
+set(TAKANAWA_INCLUDE_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@")
+find_library(TAKANAWA_LIBRARY
+  NAMES takanawa_ffi libtakanawa_ffi
+  PATHS "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@"
+  NO_DEFAULT_PATH
+)
+if(WIN32)
+  find_file(TAKANAWA_RUNTIME_LIBRARY
+    NAMES takanawa_ffi.dll
+    PATHS "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_BINDIR@"
+    NO_DEFAULT_PATH
+  )
+endif()
+
+if(NOT EXISTS "${TAKANAWA_INCLUDE_DIR}/takanawa.h")
+  set(Takanawa_FOUND FALSE)
+  set(Takanawa_NOT_FOUND_MESSAGE "Takanawa header not found under ${TAKANAWA_INCLUDE_DIR}")
+  return()
+endif()
+
+if(NOT TAKANAWA_LIBRARY)
+  set(Takanawa_FOUND FALSE)
+  set(Takanawa_NOT_FOUND_MESSAGE "Takanawa library not found under ${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@")
+  return()
+endif()
+
+if(NOT TARGET Takanawa::takanawa)
+  add_library(Takanawa::takanawa UNKNOWN IMPORTED)
+  set_target_properties(Takanawa::takanawa PROPERTIES
+    IMPORTED_LOCATION "${TAKANAWA_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${TAKANAWA_INCLUDE_DIR}"
+  )
+  if(WIN32 AND TAKANAWA_RUNTIME_LIBRARY)
+    set_target_properties(Takanawa::takanawa PROPERTIES
+      IMPORTED_IMPLIB "${TAKANAWA_LIBRARY}"
+      IMPORTED_LOCATION "${TAKANAWA_RUNTIME_LIBRARY}"
+    )
+  endif()
+endif()
+
+set(TAKANAWA_INCLUDE_DIRS "${TAKANAWA_INCLUDE_DIR}")
+set(TAKANAWA_LIBRARIES Takanawa::takanawa)
+
+check_required_components(Takanawa)

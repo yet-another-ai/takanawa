@@ -80,8 +80,12 @@ fn published_version_references_match_workspace_version() {
 
     let version_literals = [
         ("README.md", "takanawa-android"),
+        ("docs/api/index.md", "takanawa-android"),
+        ("docs/guide/getting-started.md", "takanawa-android"),
         ("Cargo.toml", "takanawa-core"),
         ("Cargo.toml", "takanawa-http"),
+        ("CMakeLists.txt", "project(Takanawa VERSION"),
+        ("ports/takanawa/vcpkg.json", "\"version\""),
     ];
 
     for (relative_path, nearby_text) in version_literals {
@@ -91,7 +95,9 @@ fn published_version_references_match_workspace_version() {
             contents.contains(&format!("{nearby_text}:{workspace_version}"))
                 || contents.contains(&format!(
                     "{nearby_text} = {{ version = \"{workspace_version}\""
-                )),
+                ))
+                || contents.contains(&format!("{nearby_text} {workspace_version}"))
+                || contents.contains(&format!("{nearby_text}: \"{workspace_version}\"")),
             "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync` after changing the workspace version"
         );
     }

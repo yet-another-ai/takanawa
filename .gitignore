@@ -2,6 +2,7 @@
 .gradle/
 **/build/
 node_modules/
+.pnpm-store/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 .DS_Store
