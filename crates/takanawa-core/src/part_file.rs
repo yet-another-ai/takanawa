@@ -226,12 +226,14 @@ impl PartFile {
     }
 }
 
+#[must_use]
 pub fn part_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part");
     PathBuf::from(value)
 }
 
+#[must_use]
 pub fn part_lock_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part.lock");

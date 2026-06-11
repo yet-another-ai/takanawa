@@ -299,6 +299,7 @@ pub async fn download_to_completion(
     Ok(state.snapshot())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_download(
     engine: DownloadEngine,
     config: DownloadConfig,
@@ -511,9 +512,8 @@ async fn finish_part_writer_after_error(
     err: TakanawaError,
 ) -> TakanawaError {
     match finish_part_writer(writer_tx, writer_join).await {
-        Ok(_) => err,
         Err(writer_err) if matches!(err, TakanawaError::Ffi(_)) => writer_err,
-        Err(TakanawaError::Ffi(_)) => err,
+        Ok(_) | Err(TakanawaError::Ffi(_)) => err,
         Err(writer_err) => writer_err,
     }
 }

@@ -1,4 +1,5 @@
 #![allow(unsafe_code)]
+#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::ffi::CStr;
