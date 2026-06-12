@@ -10,7 +10,8 @@ internal struct ParsedDownloadOptions {
 internal enum TakanawaCapacitorOptions {
   private static let defaultMaxIo = 4
 
-  static func parse(_ options: JSObject) throws -> ParsedDownloadOptions {
+  static func parse(_ rawOptions: [AnyHashable: Any]) throws -> ParsedDownloadOptions {
+    let options = normalizeOptions(rawOptions)
     let hash = try parseHash(options)
     let config = try DownloadConfig(
       url: requiredString(options, "url"),
@@ -31,8 +32,18 @@ internal enum TakanawaCapacitorOptions {
 
     return ParsedDownloadOptions(
       config: config,
-      maxIo: max(optionalIntOrNil(options, "maxIo") ?? defaultMaxIo, 1)
+      maxIo: max(try optionalIntOrNil(options, "maxIo") ?? defaultMaxIo, 1)
     )
+  }
+
+  private static func normalizeOptions(_ options: [AnyHashable: Any]) -> JSObject {
+    var normalized = JSObject()
+    for (key, value) in options {
+      if let key = key as? String {
+        normalized[key] = value
+      }
+    }
+    return normalized
   }
 
   private static func parseHash(_ options: JSObject) throws -> (kind: HashKind, expected: Data?) {
