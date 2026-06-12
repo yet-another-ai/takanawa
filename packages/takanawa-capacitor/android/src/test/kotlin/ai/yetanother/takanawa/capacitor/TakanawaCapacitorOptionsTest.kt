@@ -1,10 +1,10 @@
 package ai.yetanother.takanawa.capacitor
 
 import ai.yetanother.takanawa.HashKind
-import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Test
 import org.json.JSONObject
 
 class TakanawaCapacitorOptionsTest {
@@ -29,7 +29,7 @@ class TakanawaCapacitorOptionsTest {
         val config = TakanawaCapacitorOptions.parse(options).config
 
         assertEquals(HashKind.SHA1, config.hashKind)
-        assertContentEquals(ByteArray(20), config.expectedHash!!)
+        assertArrayEquals(ByteArray(20), config.expectedHash!!)
     }
 
     @Test
@@ -39,12 +39,12 @@ class TakanawaCapacitorOptionsTest {
         ).config
 
         assertEquals(HashKind.SHA256, config.hashKind)
-        assertContentEquals(ByteArray(32) { 0x11.toByte() }, config.expectedHash!!)
+        assertArrayEquals(ByteArray(32) { 0x11.toByte() }, config.expectedHash!!)
     }
 
     @Test
     fun rejectsInvalidHashes() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             TakanawaCapacitorOptions.parse(
                 baseOptions().put(
                     "hash",
@@ -53,7 +53,7 @@ class TakanawaCapacitorOptionsTest {
             )
         }
 
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             TakanawaCapacitorOptions.parse(
                 baseOptions()
                     .put("hash", JSONObject().put("kind", "sha256").put("expected", "00".repeat(32)))
@@ -64,11 +64,11 @@ class TakanawaCapacitorOptionsTest {
 
     @Test
     fun rejectsNegativeAndTooLargeValues() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             TakanawaCapacitorOptions.parse(baseOptions().put("chunkSize", -1))
         }
 
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             TakanawaCapacitorOptions.parse(baseOptions().put("chunkSize", Long.MAX_VALUE.toString() + "0"))
         }
     }
