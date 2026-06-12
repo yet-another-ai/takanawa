@@ -92,6 +92,7 @@ fn published_version_references_match_workspace_version() {
         ),
         ("CMakeLists.txt", "project(Takanawa VERSION"),
         ("ports/takanawa/vcpkg.json", "\"version\""),
+        ("package.json", "\"version\""),
     ];
 
     for (relative_path, nearby_text) in version_literals {
@@ -158,6 +159,25 @@ fn published_version_references_match_workspace_version() {
             "{relative_path} should derive the release version from Cargo.toml"
         );
     }
+}
+
+#[test]
+fn version_sync_tracks_package_swift() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("takanawa-core lives under crates/takanawa-core");
+    let mise_toml =
+        fs::read_to_string(workspace_root.join("mise.toml")).expect("mise.toml should be readable");
+
+    assert!(
+        mise_toml.contains(r#""packages/takanawa-capacitor/ios/Package.swift""#),
+        "mise version:sync sources must include packages/takanawa-capacitor/ios/Package.swift so sync-version.sh reruns when the SwiftPM dependency version changes"
+    );
+    assert!(
+        mise_toml.contains(r#""package.json""#),
+        "mise version:sync sources must include package.json so the root npm manifest stays aligned with the workspace version"
+    );
 }
 
 fn workspace_package_version(cargo_toml: &str) -> Option<String> {
