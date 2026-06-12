@@ -371,7 +371,7 @@ impl SharedState {
             speed.bytes_per_second = if elapsed.is_zero() {
                 0.0
             } else {
-                bytes as f64 / elapsed.as_secs_f64()
+                u64_to_f64(bytes) / elapsed.as_secs_f64()
             };
             speed.started_at = Some(speed.started_at.unwrap_or(now));
             speed.last_sample_at = Some(now);
@@ -497,6 +497,12 @@ impl SharedState {
         }
         self.notify_speed();
     }
+}
+
+fn u64_to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).expect("high u64 word must fit in u32");
+    let low = u32::try_from(value & u64::from(u32::MAX)).expect("low u64 word must fit in u32");
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
 }
 
 #[cfg(test)]
