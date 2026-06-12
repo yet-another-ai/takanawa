@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yetanother.ai/takanawa.git",
+    "url": "https://github.com/yetanother.ai/takanawa",
     "directory": "packages/takanawa-js-core"
   },
   "type": "module",
