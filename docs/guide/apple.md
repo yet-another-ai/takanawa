@@ -8,7 +8,7 @@ SDK and links a prebuilt `Takanawa.xcframework`.
 Add the repository as a Swift Package dependency:
 
 ```swift
-.package(url: "https://github.com/yetanother.ai/takanawa.git", exact: "0.4.2")
+.package(url: "https://github.com/yet-another-ai/takanawa.git", exact: "0.4.2")
 ```
 
 Then depend on the `Takanawa` product:

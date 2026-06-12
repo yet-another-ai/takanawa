@@ -82,10 +82,10 @@ fn published_version_references_match_workspace_version() {
         ("README.md", "takanawa-android"),
         ("docs/api/index.md", "takanawa-android"),
         ("docs/guide/android.md", "takanawa-android"),
-        ("docs/guide/apple.md", "yetanother.ai/takanawa.git\", exact"),
+        ("docs/guide/apple.md", "takanawa.git\", exact"),
         (
             "packages/takanawa-capacitor/ios/Package.swift",
-            "yetanother.ai/takanawa.git\", exact",
+            "takanawa.git\", exact",
         ),
         ("Cargo.toml", "takanawa-core"),
         ("Cargo.toml", "takanawa-http"),

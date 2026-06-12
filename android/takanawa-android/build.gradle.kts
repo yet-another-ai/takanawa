@@ -131,7 +131,7 @@ mavenPublishing {
         name = "Takanawa Android"
         description = "Kotlin-first Android SDK for the Takanawa Rust range-download library."
         inceptionYear = "2026"
-        url = "https://github.com/yetanother.ai/takanawa"
+        url = "https://github.com/yet-another-ai/takanawa"
         licenses {
             license {
                 name = "MIT License"
@@ -147,9 +147,9 @@ mavenPublishing {
             }
         }
         scm {
-            url = "https://github.com/yetanother.ai/takanawa"
-            connection = "scm:git:https://github.com/yetanother.ai/takanawa.git"
-            developerConnection = "scm:git:ssh://git@github.com/yetanother.ai/takanawa.git"
+            url = "https://github.com/yet-another-ai/takanawa"
+            connection = "scm:git:https://github.com/yet-another-ai/takanawa.git"
+            developerConnection = "scm:git:ssh://git@github.com/yet-another-ai/takanawa.git"
         }
     }
 }

@@ -55,7 +55,7 @@ let package = Package(
     ),
     .binaryTarget(
       name: "TakanawaBinary",
-      url: "https://github.com/yetanother.ai/takanawa/releases/download/v${VERSION}/Takanawa.xcframework.zip",
+      url: "https://github.com/yet-another-ai/takanawa/releases/download/v${VERSION}/Takanawa.xcframework.zip",
       checksum: "${checksum}"
     )
   ]
