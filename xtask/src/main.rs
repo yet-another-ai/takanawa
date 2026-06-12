@@ -28,6 +28,7 @@ fn run_main() -> Result<()> {
         "build-windows-ffi" => build_windows_ffi(),
         "cargo-check" => cargo_check(),
         "check-apple" => check_apple(),
+        "check-csharp" => check_csharp(),
         "dist-android" => dist_android(),
         "dist-apple-swiftpm" => dist_apple_swiftpm(),
         "dist-linux" => dist_linux(),
@@ -35,7 +36,10 @@ fn run_main() -> Result<()> {
         "dist-windows" => dist_windows(),
         "github-release" => github_release(),
         "npm-publish" => npm_publish(args.next().as_deref().unwrap_or("")),
+        "nuget-publish" => nuget_publish(args.next().as_deref().unwrap_or("")),
         "package-swiftpm" => package_swiftpm(),
+        "pack-csharp" => pack_csharp(),
+        "prepare-csharp-nuget-assets" => prepare_csharp_nuget_assets(),
         "publish-android-local" => publish_android_local(),
         "publish-android-central" => publish_android_central(),
         "publish-crates" => publish_crates(),
@@ -64,6 +68,7 @@ fn print_usage() {
          build-windows-ffi\n  \
          cargo-check\n  \
          check-apple\n  \
+         check-csharp\n  \
          dist-android\n  \
          dist-apple-swiftpm\n  \
          dist-linux\n  \
@@ -71,7 +76,10 @@ fn print_usage() {
          dist-windows\n  \
          github-release\n  \
          npm-publish <dry-run|publish>\n  \
+         nuget-publish <dry-run|publish>\n  \
          package-swiftpm\n  \
+         pack-csharp\n  \
+         prepare-csharp-nuget-assets\n  \
          publish-android-local\n  \
          publish-android-central\n  \
          publish-crates\n  \
@@ -98,18 +106,24 @@ fn repo_command(program: impl AsRef<OsStr>) -> Command {
 }
 
 fn run_command(command: &mut Command) -> Result<()> {
-    let status = command.status()?;
+    let debug = format!("{command:?}");
+    let status = command
+        .status()
+        .map_err(|error| format!("{debug} failed to start: {error}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err(format!("{command:?} exited with {status}").into())
+        Err(format!("{debug} exited with {status}").into())
     }
 }
 
 fn output_text(command: &mut Command) -> Result<String> {
-    let output = command.output()?;
+    let debug = format!("{command:?}");
+    let output = command
+        .output()
+        .map_err(|error| format!("{debug} failed to start: {error}"))?;
     if !output.status.success() {
-        return Err(format!("{command:?} exited with {}", output.status).into());
+        return Err(format!("{debug} exited with {}", output.status).into());
     }
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
 }
@@ -483,6 +497,250 @@ fn dist_android() -> Result<()> {
         "target/dist/takanawa-android-jniLibs.tar.gz",
         "takanawa-android",
     ]))
+}
+
+fn check_csharp() -> Result<()> {
+    let native_dir = repo_root().join("target/debug");
+    run_command(repo_command("dotnet").args([
+        "build",
+        "packages/takanawa-csharp/src/YetAnotherAI.Takanawa/YetAnotherAI.Takanawa.csproj",
+        "--configuration",
+        "Release",
+    ]))?;
+    run_command(repo_command("dotnet").args([
+        "test",
+        "packages/takanawa-csharp/tests/YetAnotherAI.Takanawa.Tests/YetAnotherAI.Takanawa.Tests.csproj",
+        "--configuration",
+        "Release",
+    ]))?;
+    run_command(repo_command("cargo").args(["build", "-p", "takanawa-ffi", "--locked"]))?;
+
+    let mut smoke = repo_command("dotnet");
+    smoke.args([
+        "run",
+        "--project",
+        "fixtures/csharp-smoke/YetAnotherAI.Takanawa.Smoke.csproj",
+        "--configuration",
+        "Release",
+        "--no-restore",
+    ]);
+    prepend_dynamic_library_path(&mut smoke, &native_dir);
+    run_command(&mut smoke)?;
+
+    let version = workspace_version()?;
+    let output_dir = repo_root().join("target/csharp/check-package");
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = output_dir
+        .to_str()
+        .ok_or("target/csharp/check-package is not valid UTF-8")?
+        .to_owned();
+    let version_property = format!("-p:Version={version}");
+    run_command(repo_command("dotnet").args([
+        "pack",
+        "packages/takanawa-csharp/src/YetAnotherAI.Takanawa/YetAnotherAI.Takanawa.csproj",
+        "--configuration",
+        "Release",
+        "--output",
+        output_dir.as_str(),
+        "-p:ContinuousIntegrationBuild=true",
+        version_property.as_str(),
+    ]))
+}
+
+fn prepend_dynamic_library_path(command: &mut Command, native_dir: &Path) {
+    let path = env::var_os("PATH").unwrap_or_default();
+    let mut paths = env::split_paths(&path).collect::<Vec<_>>();
+    paths.insert(0, native_dir.to_path_buf());
+    if let Ok(joined) = env::join_paths(paths) {
+        command.env("PATH", joined);
+    }
+
+    if cfg!(target_os = "macos") {
+        prepend_env_path(command, "DYLD_LIBRARY_PATH", native_dir);
+    } else if cfg!(target_os = "linux") {
+        prepend_env_path(command, "LD_LIBRARY_PATH", native_dir);
+    }
+}
+
+fn prepend_env_path(command: &mut Command, name: &str, native_dir: &Path) {
+    let mut paths = env::var_os(name)
+        .map(|value| env::split_paths(&value).collect::<Vec<_>>())
+        .unwrap_or_default();
+    paths.insert(0, native_dir.to_path_buf());
+    if let Ok(joined) = env::join_paths(paths) {
+        command.env(name, joined);
+    }
+}
+
+fn pack_csharp() -> Result<()> {
+    let version = workspace_version()?;
+    let package_path = pack_csharp_version(&version, "target/csharp/package")?;
+    verify_csharp_package(&package_path)
+}
+
+fn pack_csharp_version(version: &str, output_dir: impl AsRef<Path>) -> Result<PathBuf> {
+    let output_dir = repo_root().join(output_dir);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir_text = output_dir
+        .to_str()
+        .ok_or("C# package output directory is not valid UTF-8")?
+        .to_owned();
+    let version_property = format!("-p:Version={version}");
+    run_command(repo_command("dotnet").args([
+        "pack",
+        "packages/takanawa-csharp/src/YetAnotherAI.Takanawa/YetAnotherAI.Takanawa.csproj",
+        "--configuration",
+        "Release",
+        "--output",
+        output_dir_text.as_str(),
+        "-p:ContinuousIntegrationBuild=true",
+        version_property.as_str(),
+    ]))?;
+    Ok(output_dir.join(format!("YetAnotherAI.Takanawa.{version}.nupkg")))
+}
+
+fn verify_csharp_package(package_path: &Path) -> Result<()> {
+    if !package_path.is_file() {
+        return Err(format!("missing NuGet package {}", package_path.display()).into());
+    }
+
+    let listing = output_text(
+        repo_command("unzip").args([
+            "-Z1",
+            package_path
+                .to_str()
+                .ok_or("NuGet package path is not valid UTF-8")?,
+        ]),
+    )?;
+    let entries = listing.lines().collect::<Vec<_>>();
+    for required in required_csharp_package_entries() {
+        if !entries.contains(required) {
+            return Err(format!(
+                "{} is missing required package entry {required}",
+                package_path.display()
+            )
+            .into());
+        }
+    }
+
+    Ok(())
+}
+
+fn required_csharp_package_entries() -> &'static [&'static str] {
+    &[
+        "README.md",
+        "lib/netstandard2.0/YetAnotherAI.Takanawa.dll",
+        "lib/netstandard2.0/YetAnotherAI.Takanawa.xml",
+        "buildTransitive/YetAnotherAI.Takanawa.targets",
+        "runtimes/win-x64/native/takanawa_ffi.dll",
+        "runtimes/win-x86/native/takanawa_ffi.dll",
+        "runtimes/win-arm64/native/takanawa_ffi.dll",
+        "runtimes/linux-x64/native/libtakanawa_ffi.so",
+        "runtimes/osx-x64/native/libtakanawa_ffi.dylib",
+        "runtimes/osx-arm64/native/libtakanawa_ffi.dylib",
+        "runtimes/android-arm64/native/libtakanawa_ffi.so",
+        "runtimes/android-arm/native/libtakanawa_ffi.so",
+        "runtimes/android-x86/native/libtakanawa_ffi.so",
+        "runtimes/android-x64/native/libtakanawa_ffi.so",
+        "runtimes/ios/native/Takanawa.xcframework/Info.plist",
+    ]
+}
+
+fn prepare_csharp_nuget_assets() -> Result<()> {
+    let artifacts_dir = repo_root().join("target/release-artifacts");
+    if !artifacts_dir.is_dir() {
+        return Err(format!(
+            "missing release artifacts directory {}",
+            artifacts_dir.display()
+        )
+        .into());
+    }
+
+    fs::create_dir_all(repo_root().join("target/dist"))?;
+    fs::create_dir_all(repo_root().join("target/apple"))?;
+
+    for archive in [
+        "takanawa-linux-x86_64.tar.gz",
+        "takanawa-macos-universal.tar.gz",
+        "takanawa-android-jniLibs.tar.gz",
+    ] {
+        let path = artifacts_dir.join(archive);
+        if path.is_file() {
+            run_command(
+                repo_command("tar")
+                    .args(["-C", "target/dist", "-xzf"])
+                    .arg(path),
+            )?;
+        }
+    }
+
+    for archive in [
+        "takanawa-windows-x86_64.zip",
+        "takanawa-windows-i686.zip",
+        "takanawa-windows-aarch64.zip",
+    ] {
+        let path = artifacts_dir.join(archive);
+        if path.is_file() {
+            run_command(
+                repo_command("unzip")
+                    .arg("-q")
+                    .arg("-o")
+                    .arg(path)
+                    .arg("-d")
+                    .arg("target/dist"),
+            )?;
+        }
+    }
+
+    let xcframework_zip = artifacts_dir.join("Takanawa.xcframework.zip");
+    if xcframework_zip.is_file() {
+        run_command(
+            repo_command("unzip")
+                .arg("-q")
+                .arg("-o")
+                .arg(xcframework_zip)
+                .arg("-d")
+                .arg("target/apple"),
+        )?;
+    }
+
+    Ok(())
+}
+
+fn nuget_publish(mode: &str) -> Result<()> {
+    if mode != "dry-run" && mode != "publish" {
+        return Err("usage: xtask nuget-publish <dry-run|publish>".into());
+    }
+
+    pack_csharp()?;
+    if mode == "dry-run" {
+        return Ok(());
+    }
+
+    let api_key = env::var("NUGET_API_KEY")
+        .map_err(|_| "NUGET_API_KEY is required; use NuGet/login@v1 with OIDC to issue it")?;
+    if api_key.is_empty() {
+        return Err("NUGET_API_KEY is required; use NuGet/login@v1 with OIDC to issue it".into());
+    }
+
+    let version = workspace_version()?;
+    let package_path = repo_root()
+        .join("target/csharp/package")
+        .join(format!("YetAnotherAI.Takanawa.{version}.nupkg"));
+    run_command(
+        repo_command("dotnet").args([
+            "nuget",
+            "push",
+            package_path
+                .to_str()
+                .ok_or("NuGet package path is not valid UTF-8")?,
+            "--api-key",
+            api_key.as_str(),
+            "--source",
+            "https://api.nuget.org/v3/index.json",
+            "--skip-duplicate",
+        ]),
+    )
 }
 
 fn npm_publish(mode: &str) -> Result<()> {
@@ -1065,6 +1323,12 @@ fn sync_version() -> Result<()> {
             sync_json_version(manifest, &version)?;
         }
     }
+    replace_between_all_in_file(
+        "packages/takanawa-csharp/src/YetAnotherAI.Takanawa/YetAnotherAI.Takanawa.csproj",
+        "<Version>",
+        "</Version>",
+        &version,
+    )?;
 
     replace_between_all_in_file(
         "packages/takanawa-capacitor/android/build.gradle",

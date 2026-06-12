@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>YetAnotherAI.Takanawa</AssemblyName>
+    <RootNamespace>YetAnotherAI.Takanawa</RootNamespace>
+    <PackageId>YetAnotherAI.Takanawa</PackageId>
+    <Version>0.6.0</Version>
+    <Authors>yet another ai</Authors>
+    <Company>yet another ai</Company>
+    <Description>C# binding for the Takanawa Rust range-download library.</Description>
+    <PackageTags>download;range;resume;unity;godot;native</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yet-another-ai/takanawa</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yet-another-ai/takanawa</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../buildTransitive/YetAnotherAI.Takanawa.targets" Pack="true" PackagePath="buildTransitive/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../../../target/dist/takanawa-windows-x86_64/takanawa_ffi.dll" Pack="true" PackagePath="runtimes/win-x64/native/takanawa_ffi.dll" Condition="Exists('../../../../target/dist/takanawa-windows-x86_64/takanawa_ffi.dll')" />
+    <None Include="../../../../target/dist/takanawa-windows-i686/takanawa_ffi.dll" Pack="true" PackagePath="runtimes/win-x86/native/takanawa_ffi.dll" Condition="Exists('../../../../target/dist/takanawa-windows-i686/takanawa_ffi.dll')" />
+    <None Include="../../../../target/dist/takanawa-windows-aarch64/takanawa_ffi.dll" Pack="true" PackagePath="runtimes/win-arm64/native/takanawa_ffi.dll" Condition="Exists('../../../../target/dist/takanawa-windows-aarch64/takanawa_ffi.dll')" />
+    <None Include="../../../../target/dist/takanawa-linux-x86_64/libtakanawa_ffi.so" Pack="true" PackagePath="runtimes/linux-x64/native/libtakanawa_ffi.so" Condition="Exists('../../../../target/dist/takanawa-linux-x86_64/libtakanawa_ffi.so')" />
+    <None Include="../../../../target/dist/takanawa-macos-universal/libtakanawa_ffi.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/libtakanawa_ffi.dylib" Condition="Exists('../../../../target/dist/takanawa-macos-universal/libtakanawa_ffi.dylib')" />
+    <None Include="../../../../target/dist/takanawa-macos-universal/libtakanawa_ffi.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/libtakanawa_ffi.dylib" Condition="Exists('../../../../target/dist/takanawa-macos-universal/libtakanawa_ffi.dylib')" />
+    <None Include="../../../../target/dist/takanawa-android/jniLibs/arm64-v8a/libtakanawa_ffi.so" Pack="true" PackagePath="runtimes/android-arm64/native/libtakanawa_ffi.so" Condition="Exists('../../../../target/dist/takanawa-android/jniLibs/arm64-v8a/libtakanawa_ffi.so')" />
+    <None Include="../../../../target/dist/takanawa-android/jniLibs/armeabi-v7a/libtakanawa_ffi.so" Pack="true" PackagePath="runtimes/android-arm/native/libtakanawa_ffi.so" Condition="Exists('../../../../target/dist/takanawa-android/jniLibs/armeabi-v7a/libtakanawa_ffi.so')" />
+    <None Include="../../../../target/dist/takanawa-android/jniLibs/x86/libtakanawa_ffi.so" Pack="true" PackagePath="runtimes/android-x86/native/libtakanawa_ffi.so" Condition="Exists('../../../../target/dist/takanawa-android/jniLibs/x86/libtakanawa_ffi.so')" />
+    <None Include="../../../../target/dist/takanawa-android/jniLibs/x86_64/libtakanawa_ffi.so" Pack="true" PackagePath="runtimes/android-x64/native/libtakanawa_ffi.so" Condition="Exists('../../../../target/dist/takanawa-android/jniLibs/x86_64/libtakanawa_ffi.so')" />
+    <None Include="../../../../target/apple/Takanawa.xcframework/**" Pack="true" PackagePath="runtimes/ios/native/Takanawa.xcframework/" Condition="Exists('../../../../target/apple/Takanawa.xcframework')" />
+  </ItemGroup>
+</Project>

@@ -2,7 +2,8 @@
 
 Takanawa exposes the same download core through Rust crates, npm packages, and
 native platform packages. Published Rust APIs are documented on docs.rs, while
-platform SDKs are distributed through npm, Maven Central, and SwiftPM artifacts.
+platform SDKs are distributed through npm, Maven Central, SwiftPM artifacts, and
+NuGet.
 
 ## Rust Crates
 
@@ -76,6 +77,19 @@ try download.setSpeedCallback { snapshot in
   print("\(snapshot.bytesPerSecond) B/s")
 }
 try download.start()
+```
+
+C# consumers use the `YetAnotherAI.Takanawa` NuGet package.
+
+```csharp
+using YetAnotherAI.Takanawa;
+
+using var download = TakanawaDownload.Create(config);
+download.SetProgressCallback(snapshot =>
+    Console.WriteLine($"{snapshot.Phase}: {snapshot.DownloadedBytes}/{snapshot.ContentLen}"));
+download.SetSpeedCallback(snapshot =>
+    Console.WriteLine($"{snapshot.BytesPerSecond} B/s"));
+download.Start();
 ```
 
 C ABI consumers can register a nullable `TknwProgressCallback` with

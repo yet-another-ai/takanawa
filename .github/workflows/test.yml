@@ -92,3 +92,14 @@ jobs:
         with:
           experimental: true
       - run: mise run npm:publish-dry-run
+
+  csharp:
+    name: C# binding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - run: mise run test:csharp

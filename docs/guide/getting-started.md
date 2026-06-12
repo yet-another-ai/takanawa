@@ -2,7 +2,7 @@
 
 Takanawa is organized as a Rust workspace with a core planner, an HTTP download
 engine, native FFI bindings, and package targets for JavaScript, Android, Apple,
-and C/C++ consumers.
+C#, and C/C++ consumers.
 
 Start from the target you are integrating:
 
@@ -14,6 +14,8 @@ Start from the target you are integrating:
 - [Android](./android): install the Kotlin-first AAR from Maven Central.
 - [Apple and SwiftPM](./apple): install the SwiftPM package backed by the
   prebuilt XCFramework.
+- [C# and NuGet](./csharp): install the `YetAnotherAI.Takanawa` package for
+  desktop .NET, Unity, Godot, Android, or iOS.
 - [C and C++](./c-cpp): link the C ABI library through CMake or vcpkg.
 
 Use the [target matrix](./platforms) when deciding which package matches a

@@ -83,3 +83,13 @@ jobs:
           path: |
             target/swiftpm/Takanawa.xcframework.zip
             target/swiftpm/Takanawa.xcframework.zip.checksum
+
+  csharp:
+    name: C# binding build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - run: mise run build:csharp

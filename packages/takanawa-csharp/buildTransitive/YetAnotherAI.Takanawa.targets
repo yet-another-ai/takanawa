@@ -1,0 +1,9 @@
+<Project>
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == 'Xamarin.iOS' or '$(TargetPlatformIdentifier)' == 'ios'">
+    <NativeReference Include="$(MSBuildThisFileDirectory)..\runtimes\ios\native\Takanawa.xcframework">
+      <Kind>Framework</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>true</SmartLink>
+    </NativeReference>
+  </ItemGroup>
+</Project>

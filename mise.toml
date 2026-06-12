@@ -2,6 +2,7 @@
 lockfile = true
 
 [tools]
+dotnet = "latest"
 java = "temurin-21"
 node = "lts"
 pnpm = "latest"
@@ -32,7 +33,7 @@ run = "rustup component add rustfmt clippy"
 [tasks."version:sync"]
 description = "Sync release-version references from Cargo.toml"
 run = "cargo run -p xtask -- sync-version"
-sources = ["Cargo.toml", "xtask/**/*.rs", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "package.json", "packages/*/package.json", "packages/*/README.md", "packages/takanawa-capacitor/Package.swift", "packages/takanawa-capacitor/ios/Package.swift"]
+sources = ["Cargo.toml", "xtask/**/*.rs", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "package.json", "packages/*/package.json", "packages/*/README.md", "packages/takanawa-csharp/**/*.csproj", "packages/takanawa-capacitor/Package.swift", "packages/takanawa-capacitor/ios/Package.swift"]
 
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
@@ -209,6 +210,32 @@ description = "Build Apple artifacts and run Capacitor iOS plus SwiftPM smoke te
 depends = ["package:swiftpm"]
 run = "cargo run -p xtask -- check-apple"
 sources = ["xtask/**/*.rs", "packages/takanawa-capacitor/ios/**/*.swift", "packages/takanawa-capacitor/Package.swift", "fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/apple/Takanawa.xcframework", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
+
+[tasks."build:csharp"]
+description = "Build the C# binding"
+run = "dotnet build packages/takanawa-csharp/src/YetAnotherAI.Takanawa/YetAnotherAI.Takanawa.csproj --configuration Release"
+sources = ["packages/takanawa-csharp/src/**/*.cs", "packages/takanawa-csharp/src/**/*.csproj"]
+
+[tasks."test:csharp"]
+description = "Run C# unit tests and the host native smoke fixture"
+run = "cargo run -p xtask -- check-csharp"
+sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*.cs", "packages/takanawa-csharp/**/*.csproj", "fixtures/csharp-smoke/**/*.cs", "fixtures/csharp-smoke/**/*.csproj", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock"]
+
+[tasks."pack:csharp"]
+description = "Pack and verify the C# NuGet package from staged native artifacts"
+run = "cargo run -p xtask -- pack-csharp"
+sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*", "target/dist/takanawa-windows-x86_64", "target/dist/takanawa-windows-i686", "target/dist/takanawa-windows-aarch64", "target/dist/takanawa-linux-x86_64", "target/dist/takanawa-macos-universal", "target/dist/takanawa-android", "target/apple/Takanawa.xcframework"]
+outputs = ["target/csharp/package"]
+
+[tasks."nuget:publish-dry-run"]
+description = "Build and verify the C# NuGet package without publishing"
+run = "cargo run -p xtask -- nuget-publish dry-run"
+sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*", "target/dist", "target/apple/Takanawa.xcframework"]
+
+[tasks."nuget:publish"]
+description = "Publish the C# NuGet package"
+run = "cargo run -p xtask -- nuget-publish publish"
+sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*", "target/dist", "target/apple/Takanawa.xcframework"]
 
 [tasks."swiftpm:release-manifest"]
 description = "Generate the SwiftPM release manifest with the packaged artifact checksum"

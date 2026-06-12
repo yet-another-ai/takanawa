@@ -11,9 +11,10 @@ target surfaces. Each target has its own installation path.
 | [Tauri](./tauri) | `takanawa-tauri`, `tauri-plugin-takanawa` | npm and crates.io | You are building a Tauri v2 desktop app and want the shared TypeScript API. |
 | [Android](./android) | `ai.yetanother:takanawa-android` | Maven Central | You are building a native Kotlin or Java Android app. |
 | [Apple and SwiftPM](./apple) | `Takanawa` | SwiftPM binary target | You are building a native Swift app on iOS or macOS. |
+| [C# and NuGet](./csharp) | `YetAnotherAI.Takanawa` | NuGet | You are building a .NET desktop app, Unity project, or Godot C# project. |
 | [C and C++](./c-cpp) | `Takanawa::takanawa` | CMake or vcpkg overlay | You need the stable C ABI from C or C++. |
 
 The Node, Capacitor, and Tauri packages use the same `takanawa-js-core` facade for
 option names, hash forms, phase strings, snapshot fields, listener handles, and
-promise-returning task methods. Native Android and Swift SDKs keep idiomatic
-Kotlin and Swift names while sharing the same download core.
+promise-returning task methods. Native Android, Swift, and C# SDKs keep
+idiomatic language names while sharing the same download core.

@@ -51,6 +51,7 @@ export default defineConfig({
           { text: 'Tauri', link: '/guide/tauri' },
           { text: 'Android', link: '/guide/android' },
           { text: 'Apple and SwiftPM', link: '/guide/apple' },
+          { text: 'C# and NuGet', link: '/guide/csharp' },
           { text: 'C and C++', link: '/guide/c-cpp' },
         ],
       },

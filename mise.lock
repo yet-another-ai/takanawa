@@ -8,6 +8,10 @@ backend = "cargo:cargo-ndk"
 version = "0.29.4"
 backend = "cargo:cbindgen"
 
+[[tools.dotnet]]
+version = "8.0.405"
+backend = "core:dotnet"
+
 [[tools.java]]
 version = "temurin-21.0.11+10.0.LTS"
 backend = "core:java"

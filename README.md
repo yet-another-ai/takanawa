@@ -11,6 +11,8 @@ downloads can resume automatically.
 - `takanawa-http`: Tokio/reqwest HTTP range download engine.
 - `takanawa-ffi`: C ABI wrapper built as `cdylib` and `staticlib`.
 - `takanawa-cli`: small dogfood CLI.
+- `packages/takanawa-csharp`: C# SDK published as `YetAnotherAI.Takanawa`
+  on NuGet for desktop .NET, Unity, Godot, Android, and iOS consumers.
 - `android/takanawa-android`: Kotlin-first Android SDK published as an AAR.
 - `packages/takanawa-js-core`: Private shared TypeScript facade bundled into
   npm target packages.
@@ -130,6 +132,41 @@ uploaded `Takanawa.xcframework.zip`.
 The Capacitor plugin does not publish a separate SwiftPM release artifact. Its
 iOS bridge is distributed in the npm package, and `packages/takanawa-capacitor/Package.swift`
 depends on this SwiftPM package at the same release version.
+
+## C# and NuGet
+
+The C# SDK is published as:
+
+```xml
+<PackageReference Include="YetAnotherAI.Takanawa" Version="0.6.0" />
+```
+
+Basic usage:
+
+```csharp
+using YetAnotherAI.Takanawa;
+
+Takanawa.Init();
+using var download = TakanawaDownload.Create(new DownloadConfig(
+    url: "https://example.com/file.bin",
+    targetPath: "/tmp/file.bin"));
+download.Start();
+var snapshot = download.Snapshot();
+Takanawa.Shutdown();
+```
+
+The package targets `netstandard2.0` and includes managed bindings plus native
+runtime assets for desktop, Android, and Apple targets. Build and test locally:
+
+```sh
+mise run test:csharp
+```
+
+Release packing expects staged native artifacts from the release workflow:
+
+```sh
+mise run pack:csharp
+```
 
 ## C and C++
 
