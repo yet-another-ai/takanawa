@@ -1,5 +1,3 @@
-import { resolve } from 'node:path'
-
 import { defineConfig } from 'vite'
 
 const extensionByFormat = {
@@ -8,11 +6,6 @@ const extensionByFormat = {
 } as const
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      'takanawa-js-core': resolve(__dirname, '../takanawa-js-core/src/index.ts')
-    }
-  },
   build: {
     lib: {
       entry: {
@@ -21,9 +14,6 @@ export default defineConfig({
       },
       formats: ['es', 'cjs'],
       fileName: (format, entryName) => `${entryName}.${extensionByFormat[format as 'es' | 'cjs']}`
-    },
-    rollupOptions: {
-      external: ['@capacitor/core']
     },
     sourcemap: true
   }

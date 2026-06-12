@@ -30,6 +30,18 @@ importers:
         specifier: ^7.2.7
         version: 7.3.5(@types/node@24.13.1)
 
+  packages/takanawa-js-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.5(@types/node@24.13.1)
+
   packages/takanawa-node:
     devDependencies:
       '@napi-rs/cli':

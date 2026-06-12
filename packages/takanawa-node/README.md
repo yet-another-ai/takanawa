@@ -1,6 +1,7 @@
 # takanawa-node
 
-Node.js and Electron bindings for Takanawa, built with napi-rs and wrapped with a Vite + TypeScript API.
+Node.js and Electron bindings for Takanawa, built with napi-rs and wrapped with
+the shared Takanawa TypeScript API.
 
 ## Development
 
@@ -13,7 +14,7 @@ The package builds the native Node-API addon first, then emits the TypeScript wr
 ## Usage
 
 ```ts
-import { DownloadTask, downloadToCompletion } from '@yetanother.ai/takanawa'
+import { DownloadTask, downloadToCompletion } from 'takanawa-node'
 
 await downloadToCompletion({
   url: 'https://example.com/file.zip',
@@ -30,11 +31,20 @@ const task = new DownloadTask({
   targetPath: '/tmp/file.zip'
 })
 
-task.start()
-console.log(task.snapshot())
+const progress = await task.addProgressListener((snapshot) => {
+  console.log(snapshot.phase, snapshot.downloadedBytes, snapshot.contentLen)
+})
+
+await task.start()
+console.log(await task.snapshot())
+
+await progress.remove()
+await task.close()
 ```
 
-Large byte counts are exposed as `bigint` in the TypeScript API so Node and Electron callers do not lose precision.
+The public API matches the other Takanawa npm targets. Task methods return
+promises, and large byte counts are exposed as `bigint` so callers do not lose
+precision.
 
 `hash` supports `sha1`, `sha256`, `sha512`, `md5`, and `crc32` expected
 digests. You can also pass a compact string such as `sha512:<hex>`. The legacy

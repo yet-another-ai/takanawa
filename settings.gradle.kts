@@ -7,7 +7,7 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         mavenLocal()
         google()
@@ -24,7 +24,13 @@ val capacitorAndroidProjectDir = listOf(
     file("packages/takanawa-capacitor/node_modules/@capacitor/android/capacitor"),
     file("node_modules/@capacitor/android/capacitor"),
 ).firstOrNull { it.isDirectory }
-if (capacitorAndroidProjectDir != null) {
+
+val requestedTasks = gradle.startParameter.taskNames
+val shouldIncludeCapacitorProjects = requestedTasks.isEmpty() || requestedTasks.any {
+    it.contains("takanawa-capacitor") || it.contains("capacitor-android")
+}
+
+if (capacitorAndroidProjectDir != null && shouldIncludeCapacitorProjects) {
     include(":capacitor-android")
     project(":capacitor-android").projectDir = capacitorAndroidProjectDir
 

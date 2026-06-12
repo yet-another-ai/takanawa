@@ -1,48 +1,18 @@
 # Platforms
 
 Takanawa is designed to ship the same Rust download core through multiple
-platform surfaces.
+target surfaces. Each target has its own installation path.
 
-## Desktop
+| Target | Package | Install From | Use When |
+| --- | --- | --- | --- |
+| [Rust](./rust) | `takanawa-core`, `takanawa-http`, `takanawa-ffi` | crates.io or workspace path | You are building a Rust application or embedding the core directly. |
+| [Node and Electron](./node) | `takanawa-node` | npm | You need Node-API bindings on desktop/server JavaScript. |
+| [Capacitor](./capacitor) | `takanawa-capacitor` | npm | You are building a Capacitor v8 Android/iOS app and want a TypeScript API. |
+| [Android](./android) | `ai.yetanother:takanawa-android` | Maven Central | You are building a native Kotlin or Java Android app. |
+| [Apple and SwiftPM](./apple) | `Takanawa` | SwiftPM binary target | You are building a native Swift app on iOS or macOS. |
+| [C and C++](./c-cpp) | `Takanawa::takanawa` | CMake or vcpkg overlay | You need the stable C ABI from C or C++. |
 
-The workspace builds on Windows, macOS, and Linux. The FFI crate produces native
-library artifacts for embedding through a stable C ABI.
-
-```sh
-mise run build:desktop
-```
-
-C and C++ consumers can use the generated CMake package target
-`Takanawa::takanawa` or the local vcpkg overlay port.
-
-```sh
-mise run test:cmake-integration
-```
-
-## Android
-
-Android packages include JNI libraries for supported ABIs and a Kotlin-first
-SDK published as an AAR.
-
-```sh
-mise run package:android-aar
-```
-
-## Capacitor
-
-Capacitor users can install the `takanawa-capacitor` package for Android and
-iOS apps. Its TypeScript API mirrors the Node package while delegating work to
-the native Android and Swift SDKs.
-
-```sh
-pnpm --filter takanawa-capacitor build
-```
-
-## Apple
-
-Apple packages are distributed as a prebuilt `Takanawa.xcframework` for SwiftPM.
-Current deployment targets are iOS 13.0, iOS Simulator 13.0, and macOS 10.15.
-
-```sh
-mise run package:apple
-```
+The Node and Capacitor packages use the same `takanawa-js-core` facade for
+option names, hash forms, phase strings, snapshot fields, listener handles, and
+promise-returning task methods. Native Android and Swift SDKs keep idiomatic
+Kotlin and Swift names while sharing the same download core.

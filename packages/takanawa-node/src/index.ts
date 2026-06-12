@@ -1,4 +1,15 @@
 import {
+  createTakanawaApi,
+  type DownloadListenerHandle as CoreDownloadListenerHandle,
+  type DownloadOptions as CoreDownloadOptions,
+  type DownloadProgressListener as CoreDownloadProgressListener,
+  type DownloadSnapshot as CoreDownloadSnapshot,
+  type NormalizedDownloadOptions,
+  type NormalizedDownloadSnapshot,
+  type TakanawaTargetAdapter
+} from 'takanawa-js-core'
+
+import {
   nativeBinding,
   type NativeDownloadOptions,
   type NativeDownloadSnapshot,
@@ -54,44 +65,103 @@ export interface DownloadSnapshot {
   lastError?: string
 }
 
+export type DownloadProgressListener = (snapshot: DownloadSnapshot) => void
+
+export interface DownloadListenerHandle {
+  remove(): Promise<void>
+}
+
+const PROGRESS_POLL_INTERVAL_MS = 250
+
+const nodeAdapter: TakanawaTargetAdapter<NativeDownloadTask> = {
+  create(options) {
+    return new nativeBinding.NativeDownloadTask(toNativeOptions(options))
+  },
+  start(task) {
+    task.start()
+  },
+  pause(task) {
+    task.pause()
+  },
+  cancel(task) {
+    task.cancel()
+  },
+  snapshot(task) {
+    return fromNativeSnapshot(task.snapshot())
+  },
+  bitmap(task) {
+    return task.bitmap()
+  },
+  close() {},
+  addProgressListener(task, listener) {
+    let previous = snapshotKey(fromNativeSnapshot(task.snapshot()))
+    const timer = setInterval(() => {
+      const snapshot = fromNativeSnapshot(task.snapshot())
+      const key = snapshotKey(snapshot)
+      if (key !== previous) {
+        previous = key
+        listener(snapshot)
+      }
+    }, PROGRESS_POLL_INTERVAL_MS)
+
+    return {
+      async remove() {
+        clearInterval(timer)
+      }
+    } satisfies CoreDownloadListenerHandle
+  },
+  async downloadToCompletion(options) {
+    return fromNativeSnapshot(await nativeBinding.nativeDownloadToCompletion(toNativeOptions(options)))
+  }
+}
+
+const nodeApi = createTakanawaApi(nodeAdapter)
+
 export class DownloadTask {
-  readonly #native: NativeDownloadTask
+  readonly #inner: InstanceType<typeof nodeApi.DownloadTask>
 
   constructor(options: DownloadOptions) {
-    this.#native = new nativeBinding.NativeDownloadTask(normalizeOptions(options))
+    this.#inner = new nodeApi.DownloadTask(options as CoreDownloadOptions)
   }
 
-  start(): void {
-    this.#native.start()
+  start(): Promise<void> {
+    return this.#inner.start()
   }
 
-  pause(): void {
-    this.#native.pause()
+  pause(): Promise<void> {
+    return this.#inner.pause()
   }
 
-  cancel(): void {
-    this.#native.cancel()
+  cancel(): Promise<void> {
+    return this.#inner.cancel()
   }
 
-  snapshot(): DownloadSnapshot {
-    return mapSnapshot(this.#native.snapshot())
+  snapshot(): Promise<DownloadSnapshot> {
+    return this.#inner.snapshot() as Promise<DownloadSnapshot>
   }
 
-  bitmap(): Uint8Array {
-    return this.#native.bitmap()
+  bitmap(): Promise<Uint8Array> {
+    return this.#inner.bitmap()
+  }
+
+  close(): Promise<void> {
+    return this.#inner.close()
+  }
+
+  addProgressListener(listener: DownloadProgressListener): Promise<DownloadListenerHandle> {
+    return this.#inner.addProgressListener(listener as CoreDownloadProgressListener)
   }
 }
 
-export async function downloadToCompletion(options: DownloadOptions): Promise<DownloadSnapshot> {
-  const snapshot = await nativeBinding.nativeDownloadToCompletion(normalizeOptions(options))
-  return mapSnapshot(snapshot)
+export function downloadToCompletion(options: DownloadOptions): Promise<DownloadSnapshot> {
+  return nodeApi.downloadToCompletion(options as CoreDownloadOptions) as Promise<CoreDownloadSnapshot> as Promise<DownloadSnapshot>
 }
 
-function normalizeOptions(options: DownloadOptions): NativeDownloadOptions {
+function toNativeOptions(options: NormalizedDownloadOptions): NativeDownloadOptions {
   return {
     url: options.url,
     target_path: options.targetPath,
-    chunk_size: normalizeOptionalU64(options.chunkSize),
+    chunk_size: options.chunkSize,
     parallelism: options.parallelism,
     max_parallel_chunks: options.maxParallelChunks,
     max_io: options.maxIo,
@@ -101,79 +171,34 @@ function normalizeOptions(options: DownloadOptions): NativeDownloadOptions {
     connect_timeout_ms: options.connectTimeoutMs,
     read_timeout_ms: options.readTimeoutMs,
     total_timeout_ms: options.totalTimeoutMs,
-    bytes_per_second_limit: normalizeOptionalU64(options.bytesPerSecondLimit),
-    hash: normalizeHash(options),
+    bytes_per_second_limit: options.bytesPerSecondLimit,
+    hash: options.hash,
     sha256: undefined
   }
 }
 
-function normalizeHash(options: DownloadOptions): NativeDownloadOptions['hash'] {
-  if (options.hash !== undefined && options.sha256 !== undefined) {
-    throw new TypeError('use either hash or sha256, not both')
-  }
-  if (options.hash === undefined) {
-    return options.sha256 === undefined ? undefined : { kind: 'sha256', expected: options.sha256 }
-  }
-  if (typeof options.hash === 'string') {
-    const separator = options.hash.indexOf(':')
-    if (separator === -1) {
-      throw new TypeError('hash string must use the format "kind:hex"')
-    }
-    return {
-      kind: normalizeHashKind(options.hash.slice(0, separator)),
-      expected: options.hash.slice(separator + 1)
-    }
-  }
+function fromNativeSnapshot(snapshot: NativeDownloadSnapshot): NormalizedDownloadSnapshot {
   return {
-    kind: normalizeHashKind(options.hash.kind),
-    expected: options.hash.expected
-  }
-}
-
-function normalizeHashKind(kind: string): HashKind {
-  switch (kind.toLowerCase()) {
-    case 'sha1':
-    case 'sha-1':
-      return 'sha1'
-    case 'sha256':
-    case 'sha-256':
-      return 'sha256'
-    case 'sha512':
-    case 'sha-512':
-      return 'sha512'
-    case 'md5':
-      return 'md5'
-    case 'crc32':
-    case 'crc-32':
-      return 'crc32'
-    default:
-      throw new TypeError(`unsupported hash kind: ${kind}`)
-  }
-}
-
-function normalizeOptionalU64(value: bigint | number | string | undefined): string | undefined {
-  if (value === undefined) {
-    return undefined
-  }
-  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    throw new TypeError('numeric u64 options must be safe integers; pass a bigint or string for larger values')
-  }
-  const text = value.toString()
-  if (!/^\d+$/.test(text)) {
-    throw new TypeError(`expected an unsigned integer string, got ${text}`)
-  }
-  return text
-}
-
-function mapSnapshot(snapshot: NativeDownloadSnapshot): DownloadSnapshot {
-  return {
-    phase: snapshot.phase as DownloadPhase,
-    contentLen: BigInt(snapshot.content_len),
-    downloadedBytes: BigInt(snapshot.downloaded_bytes),
-    chunkSize: BigInt(snapshot.chunk_size),
-    chunkCount: BigInt(snapshot.chunk_count),
-    completedChunks: BigInt(snapshot.completed_chunks),
+    phase: snapshot.phase,
+    contentLen: snapshot.content_len,
+    downloadedBytes: snapshot.downloaded_bytes,
+    chunkSize: snapshot.chunk_size,
+    chunkCount: snapshot.chunk_count,
+    completedChunks: snapshot.completed_chunks,
     activeIo: snapshot.active_io,
     lastError: snapshot.last_error
   }
+}
+
+function snapshotKey(snapshot: NormalizedDownloadSnapshot): string {
+  return [
+    snapshot.phase,
+    snapshot.contentLen,
+    snapshot.downloadedBytes,
+    snapshot.chunkSize,
+    snapshot.chunkCount,
+    snapshot.completedChunks,
+    snapshot.activeIo,
+    snapshot.lastError ?? ''
+  ].join('\0')
 }
