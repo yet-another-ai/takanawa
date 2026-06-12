@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -29,67 +30,15 @@ jobs:
         with:
           experimental: true
       - name: Install Linux system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: Swatinem/rust-cache@v2
 
       - name: Publish crates in dependency order
-        shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
-            echo "::error title=Missing token::Set the CRATES_IO_TOKEN repository secret."
-            exit 1
-          fi
-
-          crate_version() {
-            cargo metadata --no-deps --format-version 1 \
-              | jq -er --arg crate "$1" '.packages[] | select(.name == $crate) | .version'
-          }
-
-          crate_version_exists() {
-            local crate="$1"
-            local version="$2"
-            curl -fsS -H "User-Agent: takanawa-ci" \
-              "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null
-          }
-
-          wait_for_version() {
-            local crate="$1"
-            local version="$2"
-
-            for attempt in {1..60}; do
-              if crate_version_exists "$crate" "$version"; then
-                echo "$crate $version is visible on crates.io"
-                return 0
-              fi
-              echo "Waiting for $crate $version to become visible on crates.io ($attempt/60)"
-              sleep 10
-            done
-
-            echo "::error title=Registry propagation timeout::$crate $version did not become visible on crates.io."
-            exit 1
-          }
-
-          publish_one() {
-            local crate="$1"
-            local version
-            version="$(crate_version "$crate")"
-
-            if crate_version_exists "$crate" "$version"; then
-              echo "::notice title=Already published::$crate $version already exists on crates.io; skipping."
-              return 0
-            fi
-
-            cargo publish --locked -p "$crate"
-            wait_for_version "$crate" "$version"
-          }
-
-          for crate in $PUBLISH_CRATES; do
-            publish_one "$crate"
-          done
+        run: mise run publish:crates
 
   artifact-linux:
     name: Build Linux release artifact
@@ -102,15 +51,7 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - name: Build Linux dynamic library
-        shell: bash
-        run: |
-          set -euo pipefail
-          mise run header
-          cargo build -p takanawa-ffi --release --locked
-          mkdir -p target/dist/takanawa-linux-x86_64
-          cp target/release/libtakanawa_ffi.so target/dist/takanawa-linux-x86_64/
-          cp include/takanawa.h target/dist/takanawa-linux-x86_64/
-          tar -C target/dist -czf target/dist/takanawa-linux-x86_64.tar.gz takanawa-linux-x86_64
+        run: mise run dist:linux
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-linux-x86_64
@@ -137,22 +78,10 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - name: Build Windows dynamic library
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          rustup target add ${{ matrix.target }}
-          mise run header
-          cargo build -p takanawa-ffi --release --locked --target ${{ matrix.target }}
-          New-Item -ItemType Directory -Force target/dist/${{ matrix.artifact }} | Out-Null
-          Copy-Item target/${{ matrix.target }}/release/takanawa_ffi.dll target/dist/${{ matrix.artifact }}/
-          if (Test-Path target/${{ matrix.target }}/release/takanawa_ffi.dll.lib) {
-            Copy-Item target/${{ matrix.target }}/release/takanawa_ffi.dll.lib target/dist/${{ matrix.artifact }}/
-          }
-          if (Test-Path target/${{ matrix.target }}/release/takanawa_ffi.lib) {
-            Copy-Item target/${{ matrix.target }}/release/takanawa_ffi.lib target/dist/${{ matrix.artifact }}/
-          }
-          Copy-Item include/takanawa.h target/dist/${{ matrix.artifact }}/
-          Compress-Archive -Path target/dist/${{ matrix.artifact }} -DestinationPath target/dist/${{ matrix.artifact }}.zip -Force
+        env:
+          TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
+          TAKANAWA_WINDOWS_ARTIFACT: ${{ matrix.artifact }}
+        run: mise run dist:windows
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -169,29 +98,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - name: Build macOS dynamic library and Apple XCFramework
-        shell: bash
-        run: |
-          set -euo pipefail
-          export MACOSX_DEPLOYMENT_TARGET=10.15
-          mise run header
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-          cargo build -p takanawa-ffi --release --locked --target aarch64-apple-darwin
-          cargo build -p takanawa-ffi --release --locked --target x86_64-apple-darwin
-          mkdir -p target/dist/takanawa-macos-universal
-          lipo -create \
-            target/aarch64-apple-darwin/release/libtakanawa_ffi.dylib \
-            target/x86_64-apple-darwin/release/libtakanawa_ffi.dylib \
-            -output target/dist/takanawa-macos-universal/libtakanawa_ffi.dylib
-          cp include/takanawa.h target/dist/takanawa-macos-universal/
-          tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
-
-          mise run package:apple
-          mise run test:capacitor-ios
-          mise run test:swift-integration
-          mise run swiftpm:release-manifest
-          cp target/swiftpm/Takanawa.xcframework.zip target/dist/
-          cp target/swiftpm/Takanawa.xcframework.zip.checksum target/dist/
-          cp target/swiftpm/Package.swift target/dist/Package.swift
+        run: mise run dist:macos-universal
+      - name: Build Apple SwiftPM artifacts
+        run: mise run dist:apple-swiftpm
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-macos-universal
@@ -210,31 +119,13 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
-      - uses: android-actions/setup-android@v4
-      - name: Install Android SDK platform
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r28c
       - uses: Swatinem/rust-cache@v2
       - uses: gradle/actions/setup-gradle@v4
       - name: Build Android AAR and JNI libraries
-        shell: bash
-        run: |
-          set -euo pipefail
-          mise run package:android-aar
-          mkdir -p target/dist/takanawa-android
-          cp -R target/android/jniLibs target/dist/takanawa-android/
-          cp include/takanawa.h target/dist/takanawa-android/
-          cp android/takanawa-android/build/outputs/aar/takanawa-android-release.aar target/dist/
-          tar -C target/dist -czf target/dist/takanawa-android-jniLibs.tar.gz takanawa-android
+        run: mise run dist:android
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-android-jniLibs
@@ -252,40 +143,19 @@ jobs:
     environment: maven-central
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
-      - uses: android-actions/setup-android@v4
-      - name: Install Android SDK platform
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r28c
       - uses: Swatinem/rust-cache@v2
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Validate Maven Central secrets
-        shell: bash
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_IN_MEMORY_KEY: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           SIGNING_IN_MEMORY_KEY_ID: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
-        run: |
-          set -euo pipefail
-          missing=()
-          [[ -n "${MAVEN_CENTRAL_USERNAME:-}" ]] || missing+=("MAVEN_CENTRAL_USERNAME")
-          [[ -n "${MAVEN_CENTRAL_PASSWORD:-}" ]] || missing+=("MAVEN_CENTRAL_PASSWORD")
-          [[ -n "${SIGNING_IN_MEMORY_KEY:-}" ]] || missing+=("SIGNING_IN_MEMORY_KEY")
-          [[ -n "${SIGNING_IN_MEMORY_KEY_ID:-}" ]] || missing+=("SIGNING_IN_MEMORY_KEY_ID")
-          if [[ "${#missing[@]}" -gt 0 ]]; then
-            echo "::error title=Missing Maven Central secrets::${missing[*]}"
-            exit 1
-          fi
+        run: cargo run -p xtask -- validate-maven-central-env
 
       - name: Build Android native libraries
         run: mise run package:android
@@ -297,7 +167,7 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
-        run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishAndReleaseToMavenCentral
+        run: mise run publish:android-central
 
   github-release:
     name: Create GitHub release
@@ -317,17 +187,18 @@ jobs:
           path: target/release-artifacts
           merge-multiple: true
       - name: Create or update release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
+        run: cargo run -p xtask -- github-release
 
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" target/release-artifacts/* --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --generate-notes \
-              target/release-artifacts/*
-          fi
+  npm-publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    environment: npm-registry
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - run: mise run npm:publish

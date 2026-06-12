@@ -26,10 +26,7 @@ jobs:
         with:
           experimental: true
       - uses: actions/configure-pages@v5
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build VitePress site
-        run: mise run docs:build
+      - run: mise run docs:build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist

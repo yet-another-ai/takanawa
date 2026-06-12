@@ -9,12 +9,12 @@ version = "0.29.4"
 backend = "cargo:cbindgen"
 
 [[tools.java]]
-version = "temurin-21.0.10+7.0.LTS"
+version = "temurin-21.0.11+10.0.LTS"
 backend = "core:java"
 
 [tools.java."platforms.macos-arm64"]
-checksum = "sha256:01ca390455216ca27bdddf8cfad51aaedb4f90e1e23aad9bfd9e90caaa2c5f1b"
-url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.10%2B7/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.10_7.tar.gz"
+checksum = "sha256:6ebcf221c9b41507b14c098e93c6ead6440b8d9bd154f8ec666c4c73abbdb201"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.11_10.tar.gz"
 
 [[tools.node]]
 version = "24.16.0"
@@ -25,12 +25,12 @@ checksum = "sha256:39189dab4eeb15706c424af0ac08a3044c9e48f7db12a7d77f6b7aafc7dd5
 url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz"
 
 [[tools.pnpm]]
-version = "11.5.3"
+version = "11.6.0"
 backend = "aqua:pnpm/pnpm"
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:252d9a126d37bcdf640275ac40946f7f9d4ab5d801811f66207ad97d7a9aa7ee"
-url = "https://github.com/pnpm/pnpm/releases/download/v11.5.3/pnpm-darwin-arm64.tar.gz"
+checksum = "sha256:87c901635a14481fb30566a3749041134ffd4317bc6fe866c345b69fdf9b6b85"
+url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-darwin-arm64.tar.gz"
 provenance = "github-attestations"
 
 [[tools.rust]]

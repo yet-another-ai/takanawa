@@ -81,7 +81,7 @@ fn published_version_references_match_workspace_version() {
     let version_literals = [
         ("README.md", "takanawa-android"),
         (
-            "packages/takanawa-capacitor/ios/Package.swift",
+            "packages/takanawa-capacitor/Package.swift",
             "takanawa.git\", exact",
         ),
         ("Cargo.toml", "takanawa-core"),
@@ -171,8 +171,8 @@ fn version_sync_tracks_package_swift() {
         fs::read_to_string(workspace_root.join("mise.toml")).expect("mise.toml should be readable");
 
     assert!(
-        mise_toml.contains(r#""packages/takanawa-capacitor/ios/Package.swift""#),
-        "mise version:sync sources must include packages/takanawa-capacitor/ios/Package.swift so sync-version.sh reruns when the SwiftPM dependency version changes"
+        mise_toml.contains(r#""packages/takanawa-capacitor/Package.swift""#),
+        "mise version:sync sources must include packages/takanawa-capacitor/Package.swift so sync-version.sh reruns when the SwiftPM dependency version changes"
     );
     assert!(
         mise_toml.contains(r#""package.json""#),

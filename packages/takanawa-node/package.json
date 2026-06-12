@@ -34,7 +34,7 @@
     "build:ts": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-node/src/index.d.ts', 'dist/index.d.ts')\"",
     "dev:native": "napi build --platform",
     "dev:ts": "vite build --watch",
-    "test": "node --test __test__/*.test.mjs"
+    "test": "pnpm run build && node --test __test__/*.test.mjs"
   },
   "napi": {
     "name": "takanawa",

@@ -29,7 +29,7 @@
     "dist/web-*",
     "android/build.gradle",
     "android/src/main",
-    "ios/Package.swift",
+    "Package.swift",
     "ios/Sources"
   ],
   "scripts": {

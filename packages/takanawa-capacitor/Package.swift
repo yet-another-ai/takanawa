@@ -4,7 +4,7 @@ import PackageDescription
 
 let useLocalTakanawa = ProcessInfo.processInfo.environment["TAKANAWA_CAPACITOR_USE_LOCAL_TAKANAWA"] == "1"
 let takanawaDependency: Package.Dependency = useLocalTakanawa ?
-  .package(path: "../../..") :
+  .package(path: "../..") :
   .package(url: "https://github.com/yet-another-ai/takanawa.git", exact: "0.5.0")
 let capacitorSwiftPmDependency: Package.Dependency =
   .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.4")
@@ -33,12 +33,12 @@ let package = Package(
         .product(name: "Cordova", package: "capacitor-swift-pm"),
         .product(name: "Takanawa", package: "takanawa")
       ],
-      path: "Sources/TakanawaCapacitorPlugin"
+      path: "ios/Sources/TakanawaCapacitorPlugin"
     ),
     .testTarget(
       name: "TakanawaCapacitorPluginTests",
       dependencies: ["TakanawaCapacitorPlugin"],
-      path: "Tests/TakanawaCapacitorPluginTests"
+      path: "ios/Tests/TakanawaCapacitorPluginTests"
     )
   ]
 )

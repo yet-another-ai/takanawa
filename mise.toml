@@ -9,10 +9,20 @@ rust = { version = "latest", components = "rustfmt,clippy" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
 
+[tasks."install:node"]
+description = "Install pnpm workspace dependencies"
+run = "CI=true pnpm install --frozen-lockfile"
+sources = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "packages/*/package.json"]
+outputs = ["node_modules/.modules.yaml"]
+
+[tasks."android:sdk"]
+description = "Install Android SDK packages required by Gradle and cargo-ndk"
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- android-sdk"
+
 [tasks.check]
 description = "Check the full Rust workspace with all features enabled"
-run = "bash -lc 'set -euo pipefail; cargo check --workspace --all-features --locked; mkdir -p target/debug; touch target/debug/.cargo-check-stamp'"
-sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml"]
+run = "cargo run -p xtask -- cargo-check"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml"]
 outputs = ["target/debug/.cargo-check-stamp"]
 
 [tasks."rust:components"]
@@ -21,8 +31,8 @@ run = "rustup component add rustfmt clippy"
 
 [tasks."version:sync"]
 description = "Sync release-version references from Cargo.toml"
-run = "bash scripts/sync-version.sh"
-sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "package.json", "packages/*/package.json", "packages/*/README.md", "packages/takanawa-capacitor/ios/Package.swift", "scripts/sync-version.sh"]
+run = "cargo run -p xtask -- sync-version"
+sources = ["Cargo.toml", "xtask/**/*.rs", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "package.json", "packages/*/package.json", "packages/*/README.md", "packages/takanawa-capacitor/Package.swift", "packages/takanawa-capacitor/ios/Package.swift"]
 
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
@@ -44,29 +54,66 @@ sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml",
 
 [tasks."docs:dev"]
 description = "Start the VitePress documentation dev server"
-run = "pnpm docs:dev"
+run = "CI=true pnpm docs:dev"
 sources = ["docs/**/*.md", "docs/.vitepress/**/*", "package.json", "pnpm-lock.yaml"]
 
 [tasks."docs:build"]
 description = "Build the VitePress documentation site"
-run = "pnpm docs:build"
+depends = ["install:node"]
+run = "CI=true pnpm docs:build"
 sources = ["docs/**/*.md", "docs/.vitepress/**/*", "docs/public/**/*", "package.json", "pnpm-lock.yaml"]
 outputs = ["docs/.vitepress/dist"]
 
 [tasks."docs:preview"]
 description = "Preview the built VitePress documentation site"
-run = "pnpm docs:preview"
+run = "CI=true pnpm docs:preview"
 
 [tasks."test:cmake-integration"]
 description = "Build and run the CMake C++ smoke fixture against the C ABI target"
-run = "bash -lc 'set -euo pipefail; build_dir=\"${TMPDIR:-/tmp}/takanawa-cmake-integration\"; rm -rf \"$build_dir\"; cmake -S fixtures/cmake-integration -B \"$build_dir\" -DTAKANAWA_CARGO_PROFILE=debug; cmake --build \"$build_dir\"; \"$build_dir/takanawa_cpp_smoke\"'"
-sources = ["CMakeLists.txt", "cmake/**/*.cmake.in", "fixtures/cmake-integration/**/*", "include/takanawa.h", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
+run = "cargo run -p xtask -- test-cmake-integration"
+sources = ["xtask/**/*.rs", "CMakeLists.txt", "cmake/**/*.cmake.in", "fixtures/cmake-integration/**/*", "include/takanawa.h", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 
 [tasks."build:desktop"]
 description = "Build all workspace crates for the current desktop host"
 depends = ["header"]
 run = "cargo build --workspace --all-features --release --locked"
 sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml", "include/takanawa.h"]
+
+[tasks."build:windows-ffi"]
+description = "Build the Windows FFI library for TAKANAWA_WINDOWS_TARGET"
+run = "cargo run -p xtask -- build-windows-ffi"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "include/takanawa.h"]
+
+[tasks."dist:windows"]
+description = "Build and package the Windows FFI library for TAKANAWA_WINDOWS_TARGET"
+run = "cargo run -p xtask -- dist-windows"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "include/takanawa.h"]
+
+[tasks."dist:macos-universal"]
+description = "Build and package the universal macOS dynamic library"
+run = "cargo run -p xtask -- dist-macos-universal"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "include/takanawa.h"]
+outputs = ["target/dist/takanawa-macos-universal.tar.gz"]
+
+[tasks."dist:linux"]
+description = "Build and package the Linux dynamic library"
+run = "cargo run -p xtask -- dist-linux"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "include/takanawa.h"]
+outputs = ["target/dist/takanawa-linux-x86_64.tar.gz"]
+
+[tasks."dist:android"]
+description = "Stage Android release JNI libraries and AAR"
+depends = ["package:android-aar"]
+run = "cargo run -p xtask -- dist-android"
+sources = ["xtask/**/*.rs", "target/android/jniLibs", "android/takanawa-android/build/outputs/aar/takanawa-android-release.aar", "include/takanawa.h"]
+outputs = ["target/dist/takanawa-android-jniLibs.tar.gz", "target/dist/takanawa-android-release.aar"]
+
+[tasks."dist:apple-swiftpm"]
+description = "Stage Apple SwiftPM release artifacts"
+depends = ["check:apple", "swiftpm:release-manifest"]
+run = "cargo run -p xtask -- dist-apple-swiftpm"
+sources = ["xtask/**/*.rs", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum", "target/swiftpm/Package.swift"]
+outputs = ["target/dist/Takanawa.xcframework.zip", "target/dist/Takanawa.xcframework.zip.checksum", "target/dist/Package.swift"]
 
 [tasks.header]
 description = "Generate the public C header with cbindgen"
@@ -76,49 +123,75 @@ outputs = ["include/takanawa.h"]
 
 [tasks."package:android"]
 description = "Build Android JNI libraries for all supported ABIs"
-depends = ["header"]
-run = "bash scripts/build-android.sh"
-sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
+depends = ["android:sdk", "header"]
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- build-android"
+sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
 outputs = ["target/android/jniLibs"]
 
 [tasks."test:android"]
 description = "Run Android SDK unit tests"
-run = "./gradlew :takanawa-android:test"
+depends = ["package:android"]
+run = "mise x android-sdk@9.0 -- ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:test"
 sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties"]
 
 [tasks."test:capacitor-android"]
 description = "Run Capacitor Android plugin unit tests"
-run = "./gradlew :takanawa-capacitor:test"
+depends = ["install:node", "package:android"]
+run = "mise x android-sdk@9.0 -- ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-capacitor:test"
 sources = ["packages/takanawa-capacitor/android/**/*.kt", "packages/takanawa-capacitor/android/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties"]
+
+[tasks."check:android"]
+description = "Run Android JNI build, Kotlin unit tests, Capacitor unit tests, and AAR verification"
+depends = ["test:android", "test:capacitor-android", "package:android-aar"]
 
 [tasks."build:capacitor-js"]
 description = "Build the Capacitor TypeScript package"
-run = "pnpm --filter takanawa-capacitor build"
+depends = ["install:node"]
+run = "CI=true pnpm --filter takanawa-capacitor build"
 sources = ["packages/takanawa-capacitor/src/**/*.ts", "packages/takanawa-capacitor/package.json", "packages/takanawa-capacitor/tsconfig.json", "packages/takanawa-capacitor/vite.config.ts", "pnpm-lock.yaml"]
+
+[tasks."build:js"]
+description = "Build every pnpm package that declares a build script"
+depends = ["install:node"]
+run = "CI=true pnpm --recursive --if-present build"
+sources = ["packages/**/*.ts", "packages/**/package.json", "packages/**/tsconfig.json", "packages/**/vite.config.ts", "pnpm-lock.yaml"]
+
+[tasks."test:js"]
+description = "Run every pnpm package test, including private shared packages"
+depends = ["install:node"]
+run = "CI=true pnpm --recursive --if-present test"
+sources = ["packages/**/*.ts", "packages/**/*.mjs", "packages/**/package.json", "packages/**/tsconfig.json", "packages/**/vite.config.ts", "pnpm-lock.yaml"]
 
 [tasks."test:capacitor-ios"]
 description = "Build the Capacitor iOS plugin against the local Takanawa SwiftPM package"
-run = "bash scripts/test-capacitor-ios.sh"
-sources = ["packages/takanawa-capacitor/ios/**/*.swift", "packages/takanawa-capacitor/ios/Package.swift", "scripts/test-capacitor-ios.sh", "Package.swift", "target/apple/Takanawa.xcframework"]
+depends = ["package:apple"]
+run = "cargo run -p xtask -- test-capacitor-ios"
+sources = ["xtask/**/*.rs", "packages/takanawa-capacitor/ios/**/*.swift", "packages/takanawa-capacitor/Package.swift", "Package.swift", "target/apple/Takanawa.xcframework"]
 
 [tasks."package:android-aar"]
 description = "Build and verify the Android release AAR"
 depends = ["package:android"]
-run = "./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:assembleRelease :takanawa-android:verifyReleaseAar"
+run = "mise x android-sdk@9.0 -- ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:assembleRelease :takanawa-android:verifyReleaseAar"
 sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xml", "android/**/consumer-rules.pro", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
 outputs = ["android/takanawa-android/build/outputs/aar/takanawa-android-release.aar"]
 
 [tasks."publish:android-local"]
 description = "Publish the Android SDK to Maven local and build the local smoke app"
 depends = ["package:android"]
-run = "bash -lc './gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishToMavenLocal :takanawa-android:verifyMavenLocalPublication && ./gradlew :android-maven-local-smoke:assembleDebug'"
-sources = ["android/**/*.kt", "android/**/*.kts", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- publish-android-local"
+sources = ["xtask/**/*.rs", "android/**/*.kt", "android/**/*.kts", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+
+[tasks."publish:android-central"]
+description = "Publish and release the Android SDK on Maven Central"
+depends = ["package:android"]
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- publish-android-central"
+sources = ["xtask/**/*.rs", "android/**/*.kt", "android/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
 
 [tasks."package:apple"]
 description = "Build the Apple XCFramework and SwiftPM binary artifact"
 depends = ["header"]
-run = "bash scripts/build-apple-xcframework.sh"
-sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h", "include/module.modulemap"]
+run = "cargo run -p xtask -- build-apple-xcframework"
+sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h", "include/module.modulemap"]
 outputs = ["target/apple/Takanawa.xcframework", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
 [tasks."package:swiftpm"]
@@ -128,16 +201,37 @@ depends = ["package:apple"]
 [tasks."test:swift-integration"]
 description = "Build and run a SwiftPM smoke test against the packaged XCFramework"
 depends = ["package:swiftpm"]
-run = "bash scripts/test-swift-integration.sh"
-sources = ["fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
+run = "cargo run -p xtask -- test-swift-integration"
+sources = ["xtask/**/*.rs", "fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
+
+[tasks."check:apple"]
+description = "Build Apple artifacts and run Capacitor iOS plus SwiftPM smoke tests"
+depends = ["test:capacitor-ios", "test:swift-integration"]
 
 [tasks."swiftpm:release-manifest"]
 description = "Generate the SwiftPM release manifest with the packaged artifact checksum"
 depends = ["package:swiftpm"]
-run = "bash scripts/generate-swiftpm-release-manifest.sh"
-sources = ["Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
+run = "cargo run -p xtask -- swiftpm-release-manifest"
+sources = ["xtask/**/*.rs", "Package.swift", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 outputs = ["target/swiftpm/Package.swift"]
 
 [tasks.package]
 description = "Build all distributable platform artifacts"
 depends = ["package:android-aar", "package:swiftpm"]
+
+[tasks."npm:publish-dry-run"]
+description = "Build publishable npm packages and run npm publish --dry-run"
+depends = ["install:node"]
+run = "CI=true cargo run -p xtask -- npm-publish dry-run"
+sources = ["xtask/**/*.rs", "packages/**/package.json", "packages/**/*.ts", "packages/**/*.mjs", "pnpm-lock.yaml"]
+
+[tasks."npm:publish"]
+description = "Build and publish npm packages that have not already been published"
+depends = ["install:node"]
+run = "CI=true cargo run -p xtask -- npm-publish publish"
+sources = ["xtask/**/*.rs", "packages/**/package.json", "packages/**/*.ts", "packages/**/*.mjs", "pnpm-lock.yaml"]
+
+[tasks."publish:crates"]
+description = "Publish crates.io packages in dependency order"
+run = "cargo run -p xtask -- publish-crates"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/Cargo.toml", "packages/takanawa-tauri/Cargo.toml"]

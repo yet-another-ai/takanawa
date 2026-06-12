@@ -1,6 +1,6 @@
 android/src/test/
 android/build/
 ios/Tests/
-ios/.build/
-ios/Package.resolved
+.build/
+Package.resolved
 node_modules/

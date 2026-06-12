@@ -126,7 +126,7 @@ Release builds generate `target/swiftpm/Package.swift` with the checksum for the
 uploaded `Takanawa.xcframework.zip`.
 
 The Capacitor plugin does not publish a separate SwiftPM release artifact. Its
-iOS bridge is distributed in the npm package, and `packages/takanawa-capacitor/ios/Package.swift`
+iOS bridge is distributed in the npm package, and `packages/takanawa-capacitor/Package.swift`
 depends on this SwiftPM package at the same release version.
 
 ## C and C++
