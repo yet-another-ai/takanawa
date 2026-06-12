@@ -59,6 +59,9 @@ val download = TakanawaDownload.create(config)
 download.setProgressCallback { snapshot ->
     println("${snapshot.phase}: ${snapshot.downloadedBytes}/${snapshot.contentLen}")
 }
+download.setSpeedCallback { snapshot ->
+    println("${snapshot.bytesPerSecond} B/s")
+}
 download.start()
 ```
 
@@ -69,11 +72,15 @@ let download = try TakanawaDownload.create(config)
 try download.setProgressCallback { snapshot in
   print("\(snapshot.phase): \(snapshot.downloadedBytes)/\(snapshot.contentLen)")
 }
+try download.setSpeedCallback { snapshot in
+  print("\(snapshot.bytesPerSecond) B/s")
+}
 try download.start()
 ```
 
 C ABI consumers can register a nullable `TknwProgressCallback` with
-`tknw_download_set_progress_callback`. Passing `NULL` clears the callback.
+`tknw_download_set_progress_callback` and a nullable `TknwSpeedCallback` with
+`tknw_download_set_speed_callback`. Passing `NULL` clears the callback.
 C and C++ projects can link the native library through the CMake target
 `Takanawa::takanawa` or through the local vcpkg overlay port.
 

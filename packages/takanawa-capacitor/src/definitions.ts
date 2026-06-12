@@ -34,6 +34,16 @@ export interface NativeDownloadSnapshot {
   lastError?: string
 }
 
+export interface NativeDownloadSpeedSnapshot {
+  phase: string
+  contentLen: string
+  receivedBytes: string
+  intervalBytes: string
+  elapsedMillis: string
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export interface NativeTaskResult {
   taskId: string
 }
@@ -55,6 +65,11 @@ export interface NativeDownloadProgressEvent {
   snapshot: NativeDownloadSnapshot
 }
 
+export interface NativeDownloadSpeedEvent {
+  taskId: string
+  snapshot: NativeDownloadSpeedSnapshot
+}
+
 export interface TakanawaCapacitorPlugin {
   create(options: NativeDownloadOptions): Promise<NativeTaskResult>
   start(options: NativeTaskOptions): Promise<void>
@@ -67,6 +82,10 @@ export interface TakanawaCapacitorPlugin {
   addListener(
     eventName: 'downloadProgress',
     listenerFunc: (event: NativeDownloadProgressEvent) => void
+  ): Promise<PluginListenerHandle>
+  addListener(
+    eventName: 'downloadSpeed',
+    listenerFunc: (event: NativeDownloadSpeedEvent) => void
   ): Promise<PluginListenerHandle>
   removeAllListeners(): Promise<void>
 }

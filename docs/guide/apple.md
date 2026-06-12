@@ -40,6 +40,9 @@ let download = try TakanawaDownload.create(
 try download.setProgressCallback { snapshot in
   print("\(snapshot.phase): \(snapshot.downloadedBytes)/\(snapshot.contentLen)")
 }
+try download.setSpeedCallback { snapshot in
+  print("\(snapshot.bytesPerSecond) B/s")
+}
 
 try download.start()
 ```

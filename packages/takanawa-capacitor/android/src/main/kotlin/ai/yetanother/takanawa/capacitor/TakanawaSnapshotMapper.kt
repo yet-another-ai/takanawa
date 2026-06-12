@@ -2,6 +2,7 @@ package ai.yetanother.takanawa.capacitor
 
 import ai.yetanother.takanawa.DownloadPhase
 import ai.yetanother.takanawa.DownloadSnapshot
+import ai.yetanother.takanawa.DownloadSpeedSnapshot
 import com.getcapacitor.JSObject
 import java.util.Locale
 
@@ -17,6 +18,18 @@ internal fun DownloadSnapshot.toJSObject(lastError: String? = null): JSObject {
     if (!lastError.isNullOrBlank()) {
         payload.put("lastError", lastError)
     }
+    return payload
+}
+
+internal fun DownloadSpeedSnapshot.toJSObject(): JSObject {
+    val payload = JSObject()
+    payload.put("phase", phase.toJSPhase())
+    payload.put("contentLen", contentLen.toString())
+    payload.put("receivedBytes", receivedBytes.toString())
+    payload.put("intervalBytes", intervalBytes.toString())
+    payload.put("elapsedMillis", elapsedMillis.toString())
+    payload.put("bytesPerSecond", bytesPerSecond)
+    payload.put("activeIo", activeIo)
     return payload
 }
 

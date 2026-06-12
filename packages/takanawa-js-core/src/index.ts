@@ -49,7 +49,18 @@ export interface DownloadSnapshot {
   lastError?: string
 }
 
+export interface DownloadSpeedSnapshot {
+  phase: DownloadPhase
+  contentLen: bigint
+  receivedBytes: bigint
+  intervalBytes: bigint
+  elapsedMillis: bigint
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export type DownloadProgressListener = (snapshot: DownloadSnapshot) => void
+export type DownloadSpeedListener = (snapshot: DownloadSpeedSnapshot) => void
 
 export interface DownloadListenerHandle {
   remove(): Promise<void>
@@ -89,6 +100,16 @@ export interface NormalizedDownloadSnapshot {
   lastError?: string
 }
 
+export interface NormalizedDownloadSpeedSnapshot {
+  phase: string
+  contentLen: string
+  receivedBytes: string
+  intervalBytes: string
+  elapsedMillis: string
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export interface TakanawaTargetAdapter<TTask> {
   create(options: NormalizedDownloadOptions): Awaitable<TTask>
   start(task: TTask): Awaitable<void>
@@ -100,6 +121,10 @@ export interface TakanawaTargetAdapter<TTask> {
   addProgressListener(
     task: TTask,
     listener: (snapshot: NormalizedDownloadSnapshot) => void
+  ): Awaitable<DownloadListenerHandle>
+  addSpeedListener(
+    task: TTask,
+    listener: (snapshot: NormalizedDownloadSpeedSnapshot) => void
   ): Awaitable<DownloadListenerHandle>
   downloadToCompletion(options: NormalizedDownloadOptions): Awaitable<NormalizedDownloadSnapshot>
 }
@@ -181,6 +206,27 @@ export function createTakanawaApi<TTask>(adapter: TakanawaTargetAdapter<TTask>) 
         await handle.remove()
         throw error
       }
+
+      return handle
+    }
+
+    async addSpeedListener(listener: DownloadSpeedListener): Promise<DownloadListenerHandle> {
+      const task = await this.#ensureTask()
+      const adapterHandle = await adapter.addSpeedListener(task, (snapshot) => {
+        listener(mapSpeedSnapshot(snapshot))
+      })
+      let removed = false
+      const handle = {
+        remove: async () => {
+          if (removed) {
+            return
+          }
+          removed = true
+          this.#listenerHandles.delete(handle)
+          await adapterHandle.remove()
+        }
+      } satisfies DownloadListenerHandle
+      this.#listenerHandles.add(handle)
 
       return handle
     }
@@ -289,6 +335,18 @@ export function mapSnapshot(snapshot: NormalizedDownloadSnapshot): DownloadSnaps
     completedChunks: BigInt(snapshot.completedChunks),
     activeIo: snapshot.activeIo,
     lastError: snapshot.lastError
+  }
+}
+
+export function mapSpeedSnapshot(snapshot: NormalizedDownloadSpeedSnapshot): DownloadSpeedSnapshot {
+  return {
+    phase: snapshot.phase as DownloadPhase,
+    contentLen: BigInt(snapshot.contentLen),
+    receivedBytes: BigInt(snapshot.receivedBytes),
+    intervalBytes: BigInt(snapshot.intervalBytes),
+    elapsedMillis: BigInt(snapshot.elapsedMillis),
+    bytesPerSecond: snapshot.bytesPerSecond,
+    activeIo: snapshot.activeIo
   }
 }
 

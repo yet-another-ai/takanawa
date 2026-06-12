@@ -34,11 +34,15 @@ const task = new DownloadTask({
 const progress = await task.addProgressListener((snapshot) => {
   console.log(snapshot.phase, snapshot.downloadedBytes, snapshot.contentLen)
 })
+const speed = await task.addSpeedListener((snapshot) => {
+  console.log(snapshot.bytesPerSecond, snapshot.receivedBytes)
+})
 
 await task.start()
 console.log(await task.snapshot())
 
 await progress.remove()
+await speed.remove()
 await task.close()
 ```
 

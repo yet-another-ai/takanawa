@@ -6,6 +6,7 @@ import {
   type DownloadOptions as CoreDownloadOptions,
   type DownloadProgressListener as CoreDownloadProgressListener,
   type DownloadSnapshot as CoreDownloadSnapshot,
+  type DownloadSpeedListener as CoreDownloadSpeedListener,
   type TakanawaTargetAdapter
 } from 'takanawa-js-core'
 
@@ -64,7 +65,18 @@ export interface DownloadSnapshot {
   lastError?: string
 }
 
+export interface DownloadSpeedSnapshot {
+  phase: DownloadPhase
+  contentLen: bigint
+  receivedBytes: bigint
+  intervalBytes: bigint
+  elapsedMillis: bigint
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export type DownloadProgressListener = (snapshot: DownloadSnapshot) => void
+export type DownloadSpeedListener = (snapshot: DownloadSpeedSnapshot) => void
 
 export interface DownloadListenerHandle {
   remove(): Promise<void>
@@ -97,6 +109,16 @@ const capacitorAdapter: TakanawaTargetAdapter<string> = {
   },
   async addProgressListener(taskId, listener) {
     const handle = await TakanawaCapacitor.addListener('downloadProgress', (event) => {
+      if (event.taskId === taskId) {
+        listener(event.snapshot)
+      }
+    })
+    return {
+      remove: () => handle.remove()
+    } satisfies CoreDownloadListenerHandle
+  },
+  async addSpeedListener(taskId, listener) {
+    const handle = await TakanawaCapacitor.addListener('downloadSpeed', (event) => {
       if (event.taskId === taskId) {
         listener(event.snapshot)
       }
@@ -146,6 +168,10 @@ export class DownloadTask {
 
   addProgressListener(listener: DownloadProgressListener): Promise<DownloadListenerHandle> {
     return this.#inner.addProgressListener(listener as CoreDownloadProgressListener)
+  }
+
+  addSpeedListener(listener: DownloadSpeedListener): Promise<DownloadListenerHandle> {
+    return this.#inner.addSpeedListener(listener as CoreDownloadSpeedListener)
   }
 }
 

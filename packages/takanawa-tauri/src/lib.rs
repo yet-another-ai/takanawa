@@ -16,14 +16,15 @@ use serde::{Deserialize, Serialize};
 use takanawa_core::{HashConfig, HashKind};
 use takanawa_http::{
     DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase,
-    DownloadSnapshot, ProgressCallback, RetryConfig, TimeoutConfig,
-    download_to_completion as http_download_to_completion,
+    DownloadSnapshot, DownloadSpeedSnapshot, ProgressCallback, RetryConfig, SpeedCallback,
+    TimeoutConfig, download_to_completion as http_download_to_completion,
 };
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime as TokioRuntime};
 
 const PROGRESS_EVENT: &str = "takanawa://download-progress";
+const SPEED_EVENT: &str = "takanawa://download-speed";
 
 type CommandResult<T> = Result<T, String>;
 
@@ -123,6 +124,18 @@ pub struct NativeDownloadSnapshot {
     last_error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeDownloadSpeedSnapshot {
+    phase: String,
+    content_len: String,
+    received_bytes: String,
+    interval_bytes: String,
+    elapsed_millis: String,
+    bytes_per_second: f64,
+    active_io: usize,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeTaskResult {
@@ -146,6 +159,13 @@ struct NativeBitmapResult {
 struct NativeDownloadProgressEvent {
     task_id: String,
     snapshot: NativeDownloadSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeDownloadSpeedEvent {
+    task_id: String,
+    snapshot: NativeDownloadSpeedSnapshot,
 }
 
 #[derive(Default)]
@@ -181,6 +201,7 @@ impl TaskRegistry {
             .remove(task_id)
         {
             task.set_progress_callback(None);
+            task.set_speed_callback(None);
         }
     }
 
@@ -194,6 +215,7 @@ impl TaskRegistry {
         };
         for task in tasks.into_values() {
             task.set_progress_callback(None);
+            task.set_speed_callback(None);
         }
     }
 
@@ -217,14 +239,25 @@ fn create<R: Runtime>(
     let task = Arc::new(DownloadHandle::new(state.engine.clone(), config));
     let task_id = state.tasks.insert(Arc::clone(&task));
     let event_task_id = task_id.clone();
+    let progress_app = app.clone();
     let progress_callback: ProgressCallback = Arc::new(move |snapshot| {
         let payload = NativeDownloadProgressEvent {
             task_id: event_task_id.clone(),
             snapshot: snapshot.into(),
         };
-        let _ = app.emit(PROGRESS_EVENT, payload);
+        let _ = progress_app.emit(PROGRESS_EVENT, payload);
     });
     task.set_progress_callback(Some(progress_callback));
+    let speed_app = app.clone();
+    let speed_task_id = task_id.clone();
+    let speed_callback: SpeedCallback = Arc::new(move |snapshot| {
+        let payload = NativeDownloadSpeedEvent {
+            task_id: speed_task_id.clone(),
+            snapshot: snapshot.into(),
+        };
+        let _ = speed_app.emit(SPEED_EVENT, payload);
+    });
+    task.set_speed_callback(Some(speed_callback));
     Ok(NativeTaskResult { task_id })
 }
 
@@ -429,6 +462,20 @@ impl From<DownloadSnapshot> for NativeDownloadSnapshot {
             completed_chunks: snapshot.completed_chunks.to_string(),
             active_io: snapshot.active_io,
             last_error: snapshot.last_error,
+        }
+    }
+}
+
+impl From<DownloadSpeedSnapshot> for NativeDownloadSpeedSnapshot {
+    fn from(snapshot: DownloadSpeedSnapshot) -> Self {
+        Self {
+            phase: phase_to_string(snapshot.phase).to_string(),
+            content_len: snapshot.content_len.to_string(),
+            received_bytes: snapshot.received_bytes.to_string(),
+            interval_bytes: snapshot.interval_bytes.to_string(),
+            elapsed_millis: snapshot.elapsed_millis.to_string(),
+            bytes_per_second: snapshot.bytes_per_second,
+            active_io: snapshot.active_io,
         }
     }
 }

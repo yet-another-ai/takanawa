@@ -6,8 +6,8 @@ use napi::bindgen_prelude::{Buffer, Result};
 use napi_derive::napi;
 use takanawa_core::{HashConfig, HashKind};
 use takanawa_http::{
-    DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase, DownloadSnapshot, RetryConfig,
-    TimeoutConfig, download_to_completion,
+    DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase, DownloadSnapshot,
+    DownloadSpeedSnapshot, RetryConfig, TimeoutConfig, download_to_completion,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -76,6 +76,25 @@ pub struct NativeDownloadSnapshot {
     pub active_io: u32,
     /// Last failure message, when present.
     pub last_error: Option<String>,
+}
+
+/// JavaScript-facing download speed snapshot.
+#[napi(object)]
+pub struct NativeDownloadSpeedSnapshot {
+    /// Current lifecycle phase.
+    pub phase: String,
+    /// Total content length as a decimal string.
+    pub content_len: String,
+    /// Bytes represented by committed chunks plus response-body bytes observed for this task.
+    pub received_bytes: String,
+    /// Bytes observed since the previous speed sample.
+    pub interval_bytes: String,
+    /// Milliseconds elapsed since the previous speed sample.
+    pub elapsed_millis: String,
+    /// Current transfer speed in bytes per second for this sample interval.
+    pub bytes_per_second: f64,
+    /// Current number of active I/O operations.
+    pub active_io: u32,
 }
 
 /// Downloads a URL to completion from JavaScript.
@@ -164,6 +183,12 @@ impl NativeDownloadTask {
     #[napi]
     pub fn snapshot(&self) -> NativeDownloadSnapshot {
         self.handle.snapshot().into()
+    }
+
+    /// Returns the latest download speed sample.
+    #[napi(js_name = "speedSnapshot")]
+    pub fn speed_snapshot(&self) -> NativeDownloadSpeedSnapshot {
+        self.handle.speed_snapshot().into()
     }
 
     /// Returns the serialized completion bitmap.
@@ -337,6 +362,20 @@ impl From<DownloadSnapshot> for NativeDownloadSnapshot {
             completed_chunks: snapshot.completed_chunks.to_string(),
             active_io: snapshot.active_io.try_into().unwrap_or(u32::MAX),
             last_error: snapshot.last_error,
+        }
+    }
+}
+
+impl From<DownloadSpeedSnapshot> for NativeDownloadSpeedSnapshot {
+    fn from(snapshot: DownloadSpeedSnapshot) -> Self {
+        Self {
+            phase: phase_to_string(snapshot.phase),
+            content_len: snapshot.content_len.to_string(),
+            received_bytes: snapshot.received_bytes.to_string(),
+            interval_bytes: snapshot.interval_bytes.to_string(),
+            elapsed_millis: snapshot.elapsed_millis.to_string(),
+            bytes_per_second: snapshot.bytes_per_second,
+            active_io: snapshot.active_io.try_into().unwrap_or(u32::MAX),
         }
     }
 }

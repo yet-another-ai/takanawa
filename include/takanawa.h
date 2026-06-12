@@ -247,14 +247,27 @@ typedef struct TknwDownloadSnapshot {
 } TknwDownloadSnapshot;
 
 /**
- * C callback invoked when download progress changes.
- */
-typedef void (*TknwProgressCallback)(const struct TknwDownloadSnapshot *snapshot, void *context);
-
-/**
  * C callback invoked when a progress callback context is released.
  */
+typedef struct TknwDownloadSpeedSnapshot {
+  uint32_t abi_version;
+  size_t struct_size;
+  uint32_t phase;
+  uint64_t content_len;
+  uint64_t received_bytes;
+  uint64_t interval_bytes;
+  uint64_t elapsed_millis;
+  double bytes_per_second;
+  size_t active_io;
+} TknwDownloadSpeedSnapshot;
+
+typedef void (*TknwProgressCallback)(const struct TknwDownloadSnapshot *snapshot, void *context);
+
+typedef void (*TknwSpeedCallback)(const struct TknwDownloadSpeedSnapshot *snapshot, void *context);
+
 typedef void (*TknwProgressCallbackRelease)(void *context);
+
+typedef void (*TknwSpeedCallbackRelease)(void *context);
 
 #ifdef __cplusplus
 extern "C" {
@@ -362,6 +375,12 @@ TknwStatus tknw_download_set_progress_callback(struct TknwDownload *download,
  *
  * Panics if shared progress state is poisoned.
  */
+TknwStatus tknw_download_set_speed_callback(struct TknwDownload *download,
+                                            TknwSpeedCallback callback,
+                                            void *context,
+                                            TknwSpeedCallbackRelease context_release);
+
+
 TknwStatus tknw_download_copy_bitmap(const struct TknwDownload *download,
                                      unsigned char *buffer,
                                      size_t buffer_len,

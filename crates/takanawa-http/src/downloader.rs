@@ -22,7 +22,9 @@ use tokio::task::JoinSet;
 
 use crate::content_range::{parse_content_range, parse_unsatisfied_total};
 use crate::limiter::IoLimiter;
-use crate::state::{DownloadSnapshot, ProgressCallback, SharedState};
+use crate::state::{
+    DownloadSnapshot, DownloadSpeedSnapshot, ProgressCallback, SharedState, SpeedCallback,
+};
 
 const DEFAULT_MAX_RETRIES: u32 = 4;
 const DEFAULT_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
@@ -337,6 +339,11 @@ impl DownloadHandle {
         self.state.set_progress_callback(callback);
     }
 
+    /// Installs or removes a response-body speed callback.
+    pub fn set_speed_callback(&self, callback: Option<SpeedCallback>) {
+        self.state.set_speed_callback(callback);
+    }
+
     #[must_use]
     /// Returns the latest progress snapshot.
     ///
@@ -345,6 +352,16 @@ impl DownloadHandle {
     /// Panics if the shared progress mutex is poisoned.
     pub fn snapshot(&self) -> DownloadSnapshot {
         self.state.snapshot()
+    }
+
+    #[must_use]
+    /// Returns the latest response-body speed sample.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared speed mutex is poisoned.
+    pub fn speed_snapshot(&self) -> DownloadSpeedSnapshot {
+        self.state.speed_snapshot()
     }
 
     #[must_use]
@@ -796,12 +813,13 @@ async fn fetch_chunk_once(
             chunk.index, chunk.len
         )));
     }
-    stream_body_to_writer(response, chunk, control, bandwidth, writer_tx).await
+    stream_body_to_writer(response, chunk, state, control, bandwidth, writer_tx).await
 }
 
 async fn stream_body_to_writer(
     response: reqwest::Response,
     chunk: Chunk,
+    state: &SharedState,
     control: &Control,
     bandwidth: &BandwidthLimiter,
     writer_tx: &mpsc::Sender<WriterCommand>,
@@ -836,6 +854,7 @@ async fn stream_body_to_writer(
         }
         bandwidth.throttle(bytes.len()).await;
         send_writer_write(writer_tx, chunk.index, written, bytes).await?;
+        state.record_body_bytes(len);
         written = next_written;
     }
 

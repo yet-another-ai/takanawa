@@ -12,7 +12,8 @@ use std::time::Duration;
 use takanawa_core::{HashConfig, HashKind, TakanawaError};
 use takanawa_http::{
     DEFAULT_MAX_IO, DownloadConfig, DownloadEngine, DownloadHandle, DownloadPhase,
-    DownloadSnapshot, ProgressCallback, RetryConfig, TimeoutConfig,
+    DownloadSnapshot, DownloadSpeedSnapshot, ProgressCallback, RetryConfig, SpeedCallback,
+    TimeoutConfig,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -157,11 +158,40 @@ pub struct TknwDownloadSnapshot {
     pub active_io: usize,
 }
 
+/// Download speed sample written by the C ABI.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TknwDownloadSpeedSnapshot {
+    /// Always [`TKNW_ABI_VERSION`] on output and required on input.
+    pub abi_version: u32,
+    /// Must be at least `size_of::<TknwDownloadSpeedSnapshot>()` on input.
+    pub struct_size: usize,
+    /// Current phase as a `DownloadPhase` numeric value.
+    pub phase: u32,
+    /// Total content length in bytes.
+    pub content_len: u64,
+    /// Bytes represented by committed chunks plus response-body bytes observed for this task.
+    pub received_bytes: u64,
+    /// Bytes observed since the previous speed sample.
+    pub interval_bytes: u64,
+    /// Milliseconds elapsed since the previous speed sample.
+    pub elapsed_millis: u64,
+    /// Current transfer speed in bytes per second for this sample interval.
+    pub bytes_per_second: f64,
+    /// Current number of active I/O operations.
+    pub active_io: usize,
+}
+
 /// C callback invoked when download progress changes.
 pub type TknwProgressCallback =
     Option<extern "C" fn(snapshot: *const TknwDownloadSnapshot, context: *mut c_void)>;
+/// C callback invoked when download speed samples change.
+pub type TknwSpeedCallback =
+    Option<extern "C" fn(snapshot: *const TknwDownloadSpeedSnapshot, context: *mut c_void)>;
 /// C callback invoked when a progress callback context is released.
 pub type TknwProgressCallbackRelease = Option<extern "C" fn(context: *mut c_void)>;
+/// C callback invoked when a speed callback context is released.
+pub type TknwSpeedCallbackRelease = Option<extern "C" fn(context: *mut c_void)>;
 
 /// Opaque download handle owned by the C ABI caller.
 pub struct TknwDownload {
@@ -448,6 +478,55 @@ pub extern "C" fn tknw_download_set_progress_callback(
         download
             .inner
             .set_progress_callback(Some(progress_callback));
+        Ok(TknwStatus::Ok)
+    })
+}
+
+/// Installs or removes a speed callback for a download.
+///
+/// Passing `None` as `callback` removes the callback. A non-null `context` or
+/// release callback requires a non-null speed callback.
+///
+/// # Panics
+///
+/// Panics if the last-error mutex or callback mutex is poisoned.
+#[unsafe(no_mangle)]
+pub extern "C" fn tknw_download_set_speed_callback(
+    download: *mut TknwDownload,
+    callback: TknwSpeedCallback,
+    context: *mut c_void,
+    context_release: TknwSpeedCallbackRelease,
+) -> TknwStatus {
+    ffi_boundary(|| {
+        if download.is_null() {
+            return Err(TakanawaError::NullPointer("download"));
+        }
+        // SAFETY: download was checked for null and is borrowed only for this call.
+        let download = unsafe { &*download };
+
+        let Some(callback) = callback else {
+            if !context.is_null() || context_release.is_some() {
+                let err =
+                    TakanawaError::InvalidConfig("callback context requires a callback".to_owned());
+                *download
+                    .last_error
+                    .lock()
+                    .expect("last error mutex poisoned") = Some(err.to_string());
+                return Err(err);
+            }
+            download.inner.set_speed_callback(None);
+            return Ok(TknwStatus::Ok);
+        };
+
+        let callback_context = CallbackContext {
+            context: context as usize,
+            release: context_release,
+        };
+        let speed_callback: SpeedCallback = Arc::new(move |snapshot| {
+            let native = speed_snapshot_to_ffi(&snapshot);
+            callback(&raw const native, callback_context.ptr());
+        });
+        download.inner.set_speed_callback(Some(speed_callback));
         Ok(TknwStatus::Ok)
     })
 }
@@ -750,6 +829,20 @@ fn snapshot_to_ffi(snapshot: &DownloadSnapshot) -> TknwDownloadSnapshot {
     }
 }
 
+fn speed_snapshot_to_ffi(snapshot: &DownloadSpeedSnapshot) -> TknwDownloadSpeedSnapshot {
+    TknwDownloadSpeedSnapshot {
+        abi_version: TKNW_ABI_VERSION,
+        struct_size: size_of::<TknwDownloadSpeedSnapshot>(),
+        phase: phase_to_u32(snapshot.phase),
+        content_len: snapshot.content_len,
+        received_bytes: snapshot.received_bytes,
+        interval_bytes: snapshot.interval_bytes,
+        elapsed_millis: snapshot.elapsed_millis,
+        bytes_per_second: snapshot.bytes_per_second,
+        active_io: snapshot.active_io,
+    }
+}
+
 #[cfg(feature = "jni")]
 mod android_jni {
     use std::ffi::CString;
@@ -765,13 +858,19 @@ mod android_jni {
 
     use super::{
         HashKind, TKNW_ABI_VERSION, TknwDownload, TknwDownloadConfig, TknwDownloadSnapshot,
-        TknwGlobalConfig, TknwStatus, tknw_download_cancel, tknw_download_copy_bitmap,
-        tknw_download_create, tknw_download_last_error, tknw_download_pause, tknw_download_release,
-        tknw_download_set_progress_callback, tknw_download_snapshot, tknw_download_start,
+        TknwDownloadSpeedSnapshot, TknwGlobalConfig, TknwStatus, tknw_download_cancel,
+        tknw_download_copy_bitmap, tknw_download_create, tknw_download_last_error,
+        tknw_download_pause, tknw_download_release, tknw_download_set_progress_callback,
+        tknw_download_set_speed_callback, tknw_download_snapshot, tknw_download_start,
         tknw_global_init, tknw_global_set_max_io, tknw_global_shutdown,
     };
 
     struct AndroidProgressCallback {
+        java_vm: JavaVM,
+        listener: GlobalRef,
+    }
+
+    struct AndroidSpeedCallback {
         java_vm: JavaVM,
         listener: GlobalRef,
     }
@@ -1017,6 +1116,47 @@ mod android_jni {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadSetSpeedCallback<'local>(
+        env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        handle: jlong,
+        listener: JObject<'local>,
+    ) -> jint {
+        jni_status(|| {
+            if listener.as_raw().is_null() {
+                return Ok(status_code(tknw_download_set_speed_callback(
+                    download_mut(handle),
+                    None,
+                    ptr::null_mut(),
+                    None,
+                )));
+            }
+
+            let Ok(java_vm) = env.get_java_vm() else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(listener) = env.new_global_ref(listener) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let callback = Box::new(AndroidSpeedCallback { java_vm, listener });
+            let context = Box::into_raw(callback).cast::<c_void>();
+            let status = tknw_download_set_speed_callback(
+                download_mut(handle),
+                Some(android_speed_callback),
+                context,
+                Some(release_android_speed_callback),
+            );
+            if status != TknwStatus::Ok {
+                // SAFETY: context was created by Box::into_raw immediately above.
+                unsafe {
+                    drop(Box::from_raw(context.cast::<AndroidSpeedCallback>()));
+                }
+            }
+            Ok(status_code(status))
+        })
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadBitmapSize<'local>(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
@@ -1222,6 +1362,82 @@ mod android_jni {
         }
     }
 
+    extern "C" fn android_speed_callback(
+        snapshot: *const TknwDownloadSpeedSnapshot,
+        context: *mut c_void,
+    ) {
+        if snapshot.is_null() || context.is_null() {
+            return;
+        }
+
+        // SAFETY: context is allocated by downloadSetSpeedCallback and released by
+        // release_android_speed_callback after the native callback is unregistered.
+        let callback = unsafe { &*context.cast::<AndroidSpeedCallback>() };
+        let Ok(mut env) = callback.java_vm.attach_current_thread() else {
+            return;
+        };
+        // SAFETY: snapshot is non-null and only read during this callback.
+        let snapshot = unsafe { &*snapshot };
+        let Ok(values) = speed_values(snapshot) else {
+            return;
+        };
+        let Ok(phase_code) = jint::try_from(snapshot.phase) else {
+            return;
+        };
+        let Ok(phase) = env
+            .call_static_method(
+                "ai/yetanother/takanawa/DownloadPhase",
+                "fromCode",
+                "(I)Lai/yetanother/takanawa/DownloadPhase;",
+                &[JValue::Int(phase_code)],
+            )
+            .and_then(jni::objects::JValueGen::l)
+        else {
+            clear_exception(&mut env);
+            return;
+        };
+        let Ok(speed_object) = env.new_object(
+            "ai/yetanother/takanawa/DownloadSpeedSnapshot",
+            "(Lai/yetanother/takanawa/DownloadPhase;JJJJDI)V",
+            &[
+                JValue::Object(&phase),
+                JValue::Long(values[1]),
+                JValue::Long(values[2]),
+                JValue::Long(values[3]),
+                JValue::Long(values[4]),
+                JValue::Double(snapshot.bytes_per_second),
+                JValue::Int(match jint::try_from(values[5]) {
+                    Ok(value) => value,
+                    Err(_) => return,
+                }),
+            ],
+        ) else {
+            clear_exception(&mut env);
+            return;
+        };
+        if env
+            .call_method(
+                callback.listener.as_obj(),
+                "onSpeed",
+                "(Lai/yetanother/takanawa/DownloadSpeedSnapshot;)V",
+                &[JValue::Object(&speed_object)],
+            )
+            .is_err()
+        {
+            clear_exception(&mut env);
+        }
+    }
+
+    extern "C" fn release_android_speed_callback(context: *mut c_void) {
+        if context.is_null() {
+            return;
+        }
+        // SAFETY: context was created by Box::into_raw in downloadSetSpeedCallback.
+        unsafe {
+            drop(Box::from_raw(context.cast::<AndroidSpeedCallback>()));
+        }
+    }
+
     fn clear_exception(env: &mut JNIEnv<'_>) {
         if env.exception_check().unwrap_or(false) {
             let _ = env.exception_clear();
@@ -1278,6 +1494,17 @@ mod android_jni {
             jlong::try_from(snapshot.chunk_size).map_err(|_| TknwStatus::Internal)?,
             jlong::try_from(snapshot.chunk_count).map_err(|_| TknwStatus::Internal)?,
             jlong::try_from(snapshot.completed_chunks).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.active_io).map_err(|_| TknwStatus::Internal)?,
+        ])
+    }
+
+    fn speed_values(snapshot: &TknwDownloadSpeedSnapshot) -> Result<[jlong; 6], TknwStatus> {
+        Ok([
+            jlong::from(snapshot.phase),
+            jlong::try_from(snapshot.content_len).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.received_bytes).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.interval_bytes).map_err(|_| TknwStatus::Internal)?,
+            jlong::try_from(snapshot.elapsed_millis).map_err(|_| TknwStatus::Internal)?,
             jlong::try_from(snapshot.active_io).map_err(|_| TknwStatus::Internal)?,
         ])
     }

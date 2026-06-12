@@ -20,7 +20,7 @@ Add the Rust plugin crate to `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-takanawa-tauri = { package = "tauri-plugin-takanawa", version = "0.5.0" }
+takanawa-tauri = { package = "tauri-plugin-takanawa", version = "0.5.1" }
 ```
 
 Register the plugin in the Tauri builder:
@@ -63,11 +63,15 @@ const task = new DownloadTask({
 const progress = await task.addProgressListener((snapshot) => {
   console.log(snapshot.phase, snapshot.downloadedBytes, snapshot.contentLen)
 })
+const speed = await task.addSpeedListener((snapshot) => {
+  console.log(snapshot.bytesPerSecond, snapshot.receivedBytes)
+})
 
 await task.start()
 console.log(await task.snapshot())
 
 await progress.remove()
+await speed.remove()
 await task.close()
 ```
 

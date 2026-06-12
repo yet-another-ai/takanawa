@@ -17,6 +17,18 @@ internal func snapshotPayload(_ snapshot: DownloadSnapshot, lastError: String? =
   return payload
 }
 
+internal func speedPayload(_ snapshot: DownloadSpeedSnapshot) -> JSObject {
+  var payload = JSObject()
+  payload["phase"] = snapshot.phase.jsPhase
+  payload["contentLen"] = String(snapshot.contentLen)
+  payload["receivedBytes"] = String(snapshot.receivedBytes)
+  payload["intervalBytes"] = String(snapshot.intervalBytes)
+  payload["elapsedMillis"] = String(snapshot.elapsedMillis)
+  payload["bytesPerSecond"] = snapshot.bytesPerSecond
+  payload["activeIo"] = snapshot.activeIo
+  return payload
+}
+
 internal extension DownloadPhase {
   var jsPhase: String {
     switch self {

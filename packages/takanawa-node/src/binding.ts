@@ -36,11 +36,22 @@ export interface NativeDownloadSnapshot {
   last_error?: string
 }
 
+export interface NativeDownloadSpeedSnapshot {
+  phase: string
+  content_len: string
+  received_bytes: string
+  interval_bytes: string
+  elapsed_millis: string
+  bytes_per_second: number
+  active_io: number
+}
+
 export interface NativeDownloadTask {
   start(): void
   pause(): void
   cancel(): void
   snapshot(): NativeDownloadSnapshot
+  speedSnapshot(): NativeDownloadSpeedSnapshot
   bitmap(): Uint8Array
 }
 

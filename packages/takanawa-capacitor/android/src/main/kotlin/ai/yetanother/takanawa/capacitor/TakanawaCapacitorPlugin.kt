@@ -2,6 +2,7 @@ package ai.yetanother.takanawa.capacitor
 
 import ai.yetanother.takanawa.DownloadPhase
 import ai.yetanother.takanawa.DownloadSnapshot
+import ai.yetanother.takanawa.DownloadSpeedSnapshot
 import ai.yetanother.takanawa.Takanawa
 import ai.yetanother.takanawa.TakanawaDownload
 import android.os.Handler
@@ -31,6 +32,7 @@ class TakanawaCapacitorPlugin : Plugin() {
             val taskId = tasks.insert(download)
             try {
                 download.setProgressCallback { snapshot -> emitProgress(taskId, snapshot) }
+                download.setSpeedCallback { snapshot -> emitSpeed(taskId, snapshot) }
             } catch (error: Throwable) {
                 tasks.close(taskId)
                 throw error
@@ -134,6 +136,15 @@ class TakanawaCapacitorPlugin : Plugin() {
         payload.put("snapshot", snapshot.toJSObject(task?.let { snapshotLastError(it, snapshot) }))
         mainHandler.post {
             notifyListeners("downloadProgress", payload)
+        }
+    }
+
+    private fun emitSpeed(taskId: String, snapshot: DownloadSpeedSnapshot) {
+        val payload = JSObject()
+        payload.put("taskId", taskId)
+        payload.put("snapshot", snapshot.toJSObject())
+        mainHandler.post {
+            notifyListeners("downloadSpeed", payload)
         }
     }
 

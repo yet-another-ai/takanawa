@@ -34,6 +34,9 @@ public class TakanawaCapacitorPlugin: CAPPlugin, CAPBridgedPlugin {
         try download.setProgressCallback { [weak self] snapshot in
           self?.emitProgress(taskId: taskId, snapshot: snapshot)
         }
+        try download.setSpeedCallback { [weak self] snapshot in
+          self?.emitSpeed(taskId: taskId, snapshot: snapshot)
+        }
       } catch {
         try? self.tasks.close(taskId)
         throw error
@@ -130,6 +133,16 @@ public class TakanawaCapacitorPlugin: CAPPlugin, CAPBridgedPlugin {
 
     DispatchQueue.main.async { [weak self] in
       self?.notifyListeners("downloadProgress", data: payload)
+    }
+  }
+
+  private func emitSpeed(taskId: String, snapshot: DownloadSpeedSnapshot) {
+    var payload = JSObject()
+    payload["taskId"] = taskId
+    payload["snapshot"] = speedPayload(snapshot)
+
+    DispatchQueue.main.async { [weak self] in
+      self?.notifyListeners("downloadSpeed", data: payload)
     }
   }
 

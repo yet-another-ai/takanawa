@@ -32,6 +32,16 @@ export interface NativeDownloadSnapshot {
   lastError?: string
 }
 
+export interface NativeDownloadSpeedSnapshot {
+  phase: string
+  contentLen: string
+  receivedBytes: string
+  intervalBytes: string
+  elapsedMillis: string
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export interface NativeTaskResult {
   taskId: string
 }
@@ -47,4 +57,9 @@ export interface NativeBitmapResult {
 export interface NativeDownloadProgressEvent {
   taskId: string
   snapshot: NativeDownloadSnapshot
+}
+
+export interface NativeDownloadSpeedEvent {
+  taskId: string
+  snapshot: NativeDownloadSpeedSnapshot
 }

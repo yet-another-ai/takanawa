@@ -235,6 +235,34 @@ public final class TakanawaDownload {
     try clearProgressCallback(for: openHandle())
   }
 
+  public func setSpeedCallback(_ callback: (@Sendable (DownloadSpeedSnapshot) -> Void)?) throws {
+    let currentHandle = try openHandle()
+    try clearSpeedCallback(for: currentHandle)
+
+    guard let callback else {
+      return
+    }
+
+    let box = SpeedCallbackBox(callback)
+    let context = Unmanaged.passRetained(box).toOpaque()
+    let status = tknw_download_set_speed_callback(
+      currentHandle,
+      speedCallbackTrampoline,
+      context,
+      speedCallbackRelease
+    )
+    do {
+      try TakanawaError.check(status, handle: currentHandle)
+    } catch {
+      Unmanaged<SpeedCallbackBox>.fromOpaque(context).release()
+      throw error
+    }
+  }
+
+  public func clearSpeedCallback() throws {
+    try clearSpeedCallback(for: openHandle())
+  }
+
   public func copyBitmap() throws -> Data {
     let currentHandle = try openHandle()
     var written = 0
@@ -269,6 +297,7 @@ public final class TakanawaDownload {
       return
     }
     try clearProgressCallback(for: currentHandle)
+    try clearSpeedCallback(for: currentHandle)
     try TakanawaError.check(tknw_download_release(&handle))
   }
 
@@ -284,6 +313,7 @@ public final class TakanawaDownload {
       return
     }
     clearProgressCallbackIgnoringErrors(for: currentHandle)
+    clearSpeedCallbackIgnoringErrors(for: currentHandle)
     _ = tknw_download_release(&handle)
   }
 
@@ -294,6 +324,15 @@ public final class TakanawaDownload {
 
   private func clearProgressCallbackIgnoringErrors(for currentHandle: OpaquePointer) {
     _ = tknw_download_set_progress_callback(currentHandle, nil, nil, nil)
+  }
+
+  private func clearSpeedCallback(for currentHandle: OpaquePointer) throws {
+    let status = tknw_download_set_speed_callback(currentHandle, nil, nil, nil)
+    try TakanawaError.check(status, handle: currentHandle)
+  }
+
+  private func clearSpeedCallbackIgnoringErrors(for currentHandle: OpaquePointer) {
+    _ = tknw_download_set_speed_callback(currentHandle, nil, nil, nil)
   }
 }
 
@@ -313,6 +352,26 @@ public struct DownloadSnapshot: Sendable, Equatable {
     self.chunkSize = native.chunk_size
     self.chunkCount = native.chunk_count
     self.completedChunks = native.completed_chunks
+    self.activeIo = native.active_io
+  }
+}
+
+public struct DownloadSpeedSnapshot: Sendable, Equatable {
+  public var phase: DownloadPhase
+  public var contentLen: UInt64
+  public var receivedBytes: UInt64
+  public var intervalBytes: UInt64
+  public var elapsedMillis: UInt64
+  public var bytesPerSecond: Double
+  public var activeIo: Int
+
+  fileprivate init(_ native: TknwDownloadSpeedSnapshot) {
+    self.phase = DownloadPhase(rawValue: native.phase) ?? .failed
+    self.contentLen = native.content_len
+    self.receivedBytes = native.received_bytes
+    self.intervalBytes = native.interval_bytes
+    self.elapsedMillis = native.elapsed_millis
+    self.bytesPerSecond = native.bytes_per_second
     self.activeIo = native.active_io
   }
 }
@@ -506,6 +565,14 @@ private final class ProgressCallbackBox {
   }
 }
 
+private final class SpeedCallbackBox {
+  let callback: @Sendable (DownloadSpeedSnapshot) -> Void
+
+  init(_ callback: @Sendable @escaping (DownloadSpeedSnapshot) -> Void) {
+    self.callback = callback
+  }
+}
+
 private let progressCallbackTrampoline:
   @convention(c) (UnsafePointer<TknwDownloadSnapshot>?, UnsafeMutableRawPointer?) -> Void = {
     snapshotPointer,
@@ -524,6 +591,26 @@ private let progressCallbackRelease: @convention(c) (UnsafeMutableRawPointer?) -
   }
 
   Unmanaged<ProgressCallbackBox>.fromOpaque(context).release()
+}
+
+private let speedCallbackTrampoline:
+  @convention(c) (UnsafePointer<TknwDownloadSpeedSnapshot>?, UnsafeMutableRawPointer?) -> Void = {
+    snapshotPointer,
+    context in
+    guard let snapshotPointer, let context else {
+      return
+    }
+
+    let box = Unmanaged<SpeedCallbackBox>.fromOpaque(context).takeUnretainedValue()
+    box.callback(DownloadSpeedSnapshot(snapshotPointer.pointee))
+  }
+
+private let speedCallbackRelease: @convention(c) (UnsafeMutableRawPointer?) -> Void = { context in
+  guard let context else {
+    return
+  }
+
+  Unmanaged<SpeedCallbackBox>.fromOpaque(context).release()
 }
 
 private func takanawaStatusCode<Status>(_ status: Status) -> Int32 {

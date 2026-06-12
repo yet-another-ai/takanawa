@@ -5,6 +5,7 @@ import {
   createTakanawaApi,
   decodeBase64ToUint8Array,
   mapSnapshot,
+  mapSpeedSnapshot,
   normalizeHashKind,
   normalizeOptions
 } from '../dist/index.mjs'
@@ -18,6 +19,16 @@ const nativeSnapshot = {
   completedChunks: '1',
   activeIo: 1,
   lastError: undefined
+}
+
+const nativeSpeedSnapshot = {
+  phase: 'running',
+  contentLen: '9007199254740993',
+  receivedBytes: '12',
+  intervalBytes: '2',
+  elapsedMillis: '100',
+  bytesPerSecond: 20,
+  activeIo: 1
 }
 
 test('normalizes node-like download options', () => {
@@ -72,6 +83,15 @@ test('maps native snapshots to bigint public snapshots', () => {
   assert.equal(snapshot.downloadedBytes, 10n)
 })
 
+test('maps native speed snapshots to bigint public snapshots', () => {
+  const snapshot = mapSpeedSnapshot(nativeSpeedSnapshot)
+
+  assert.equal(snapshot.phase, 'running')
+  assert.equal(snapshot.contentLen, 9007199254740993n)
+  assert.equal(snapshot.receivedBytes, 12n)
+  assert.equal(snapshot.bytesPerSecond, 20)
+})
+
 test('decodes base64 bitmaps', () => {
   assert.deepEqual([...decodeBase64ToUint8Array('AQIDBA==')], [1, 2, 3, 4])
 })
@@ -110,6 +130,15 @@ test('injects download task facade around target adapter', async () => {
         }
       }
     },
+    addSpeedListener(_task, listener) {
+      calls.push(['speed-listen'])
+      listener(nativeSpeedSnapshot)
+      return {
+        async remove() {
+          calls.push(['speed-remove'])
+        }
+      }
+    },
     downloadToCompletion() {
       return {
         ...nativeSnapshot,
@@ -129,7 +158,13 @@ test('injects download task facade around target adapter', async () => {
     listenerSnapshots.push(snapshot.downloadedBytes)
   })
   await handle.remove()
+  const speedSnapshots = []
+  const speedHandle = await task.addSpeedListener((snapshot) => {
+    speedSnapshots.push(snapshot.receivedBytes)
+  })
+  await speedHandle.remove()
   assert.deepEqual(listenerSnapshots, [11n, 10n])
+  assert.deepEqual(speedSnapshots, [12n])
   assert.deepEqual(await task.bitmap(), new Uint8Array([1, 2, 3]))
   await task.close()
   assert.deepEqual(calls, [
@@ -137,6 +172,8 @@ test('injects download task facade around target adapter', async () => {
     ['start', 'https://example.test/file.bin'],
     ['listen'],
     ['remove'],
+    ['speed-listen'],
+    ['speed-remove'],
     ['close']
   ])
 

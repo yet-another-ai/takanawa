@@ -41,17 +41,21 @@ const task = new DownloadTask({
 const progress = await task.addProgressListener((snapshot) => {
   console.log(snapshot.phase, snapshot.downloadedBytes, snapshot.contentLen)
 })
+const speed = await task.addSpeedListener((snapshot) => {
+  console.log(snapshot.bytesPerSecond, snapshot.receivedBytes)
+})
 
 await task.start()
 console.log(await task.snapshot())
 
 await progress.remove()
+await speed.remove()
 await task.close()
 ```
 
 The public API matches the other Takanawa npm targets. Task creation is lazy,
 and task methods return promises: `start`, `pause`, `cancel`, `snapshot`,
-`bitmap`, `close`, and `addProgressListener`.
+`bitmap`, `close`, `addProgressListener`, and `addSpeedListener`.
 
 Large snapshot counters are returned as `bigint`. Hash verification supports
 `sha1`, `sha256`, `sha512`, `md5`, and `crc32` with either

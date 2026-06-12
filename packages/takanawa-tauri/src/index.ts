@@ -7,6 +7,7 @@ import {
   type DownloadOptions as CoreDownloadOptions,
   type DownloadProgressListener as CoreDownloadProgressListener,
   type DownloadSnapshot as CoreDownloadSnapshot,
+  type DownloadSpeedListener as CoreDownloadSpeedListener,
   type TakanawaTargetAdapter
 } from 'takanawa-js-core'
 
@@ -14,6 +15,7 @@ import type {
   NativeBitmapResult,
   NativeDownloadOptions,
   NativeDownloadProgressEvent,
+  NativeDownloadSpeedEvent,
   NativeDownloadSnapshot,
   NativeSnapshotResult,
   NativeTaskResult
@@ -68,13 +70,25 @@ export interface DownloadSnapshot {
   lastError?: string
 }
 
+export interface DownloadSpeedSnapshot {
+  phase: DownloadPhase
+  contentLen: bigint
+  receivedBytes: bigint
+  intervalBytes: bigint
+  elapsedMillis: bigint
+  bytesPerSecond: number
+  activeIo: number
+}
+
 export type DownloadProgressListener = (snapshot: DownloadSnapshot) => void
+export type DownloadSpeedListener = (snapshot: DownloadSpeedSnapshot) => void
 
 export interface DownloadListenerHandle {
   remove(): Promise<void>
 }
 
 export const TAKANAWA_PROGRESS_EVENT = 'takanawa://download-progress'
+export const TAKANAWA_SPEED_EVENT = 'takanawa://download-speed'
 
 const PLUGIN = 'takanawa'
 
@@ -105,6 +119,18 @@ const tauriAdapter: TakanawaTargetAdapter<string> = {
   },
   async addProgressListener(taskId, listener) {
     const unlisten = await listen<NativeDownloadProgressEvent>(TAKANAWA_PROGRESS_EVENT, (event) => {
+      if (event.payload.taskId === taskId) {
+        listener(event.payload.snapshot)
+      }
+    })
+    return {
+      async remove() {
+        unlisten()
+      }
+    } satisfies CoreDownloadListenerHandle
+  },
+  async addSpeedListener(taskId, listener) {
+    const unlisten = await listen<NativeDownloadSpeedEvent>(TAKANAWA_SPEED_EVENT, (event) => {
       if (event.payload.taskId === taskId) {
         listener(event.payload.snapshot)
       }
@@ -159,6 +185,10 @@ export class DownloadTask {
   addProgressListener(listener: DownloadProgressListener): Promise<DownloadListenerHandle> {
     return this.#inner.addProgressListener(listener as CoreDownloadProgressListener)
   }
+
+  addSpeedListener(listener: DownloadSpeedListener): Promise<DownloadListenerHandle> {
+    return this.#inner.addSpeedListener(listener as CoreDownloadSpeedListener)
+  }
 }
 
 export function downloadToCompletion(options: DownloadOptions): Promise<DownloadSnapshot> {
@@ -173,7 +203,9 @@ export type {
   NativeBitmapResult,
   NativeDownloadOptions,
   NativeDownloadProgressEvent,
+  NativeDownloadSpeedEvent,
   NativeDownloadSnapshot,
+  NativeDownloadSpeedSnapshot,
   NativeHashConfig,
   NativeSnapshotResult,
   NativeTaskResult

@@ -13,7 +13,8 @@ test('exports public API', () => {
     'snapshot',
     'bitmap',
     'close',
-    'addProgressListener'
+    'addProgressListener',
+    'addSpeedListener'
   ]) {
     assert.equal(typeof DownloadTask.prototype[method], 'function')
   }

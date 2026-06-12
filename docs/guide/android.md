@@ -38,6 +38,9 @@ val download = TakanawaDownload.create(
 download.setProgressCallback { snapshot ->
     println("${snapshot.phase}: ${snapshot.downloadedBytes}/${snapshot.contentLen}")
 }
+download.setSpeedCallback { snapshot ->
+    println("${snapshot.bytesPerSecond} B/s")
+}
 
 download.start()
 ```

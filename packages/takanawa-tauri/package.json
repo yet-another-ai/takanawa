@@ -1,6 +1,6 @@
 {
   "name": "takanawa-tauri",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Tauri v2 bindings for Takanawa downloads.",
   "license": "MIT",
   "repository": {
