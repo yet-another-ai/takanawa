@@ -1,24 +1,38 @@
 use crc32fast::Hasher as Crc32Hasher;
 use sha2::{Digest, Sha256, Sha512};
 
+/// Hash algorithm identifier used in metadata and FFI configuration.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashKind {
+    /// No hash verification.
     None = 0,
+    /// SHA-256 verification.
     Sha256 = 1,
+    /// SHA-1 verification.
     Sha1 = 2,
+    /// SHA-512 verification.
     Sha512 = 3,
+    /// MD5 verification.
     Md5 = 4,
+    /// CRC-32 verification.
     Crc32 = 5,
 }
 
+/// Expected hash value for optional final-file verification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashConfig {
+    /// Disable hash verification.
     None,
+    /// Expected SHA-1 digest.
     Sha1([u8; 20]),
+    /// Expected SHA-256 digest.
     Sha256([u8; 32]),
+    /// Expected SHA-512 digest.
     Sha512([u8; 64]),
+    /// Expected MD5 digest.
     Md5([u8; 16]),
+    /// Expected CRC-32 digest in big-endian byte order.
     Crc32([u8; 4]),
 }
 
@@ -47,6 +61,7 @@ pub(crate) enum HashVerifier {
 
 impl HashKind {
     #[must_use]
+    /// Returns the expected digest length in bytes.
     pub const fn expected_len(self) -> usize {
         match self {
             Self::None => 0,
@@ -59,6 +74,7 @@ impl HashKind {
     }
 
     #[must_use]
+    /// Returns a human-readable algorithm name.
     pub const fn name(self) -> &'static str {
         match self {
             Self::None => "none",
@@ -71,6 +87,7 @@ impl HashKind {
     }
 
     #[must_use]
+    /// Decodes a stable numeric hash identifier.
     pub const fn from_u32(value: u32) -> Option<Self> {
         match value {
             0 => Some(Self::None),
@@ -105,6 +122,7 @@ impl From<HashKind> for u32 {
 
 impl HashConfig {
     #[must_use]
+    /// Returns the hash algorithm for this configuration.
     pub const fn kind(self) -> HashKind {
         match self {
             Self::None => HashKind::None,
@@ -117,6 +135,7 @@ impl HashConfig {
     }
 
     #[must_use]
+    /// Returns the expected digest bytes, or `None` when verification is disabled.
     pub fn expected_bytes(self) -> Option<Vec<u8>> {
         match self {
             Self::None => None,
@@ -129,6 +148,7 @@ impl HashConfig {
     }
 
     #[must_use]
+    /// Creates a hash configuration from an algorithm and digest bytes.
     pub fn from_expected_bytes(kind: HashKind, bytes: &[u8]) -> Option<Self> {
         match kind {
             HashKind::None if bytes.is_empty() => Some(Self::None),
@@ -199,6 +219,7 @@ impl HashVerifier {
 }
 
 #[must_use]
+/// Hashes a URL for stable storage in part-file metadata.
 pub fn hash_url(url: &str) -> [u8; 32] {
     let digest = Sha256::digest(url.as_bytes());
     digest.into()

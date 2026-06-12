@@ -13,43 +13,77 @@ use tokio::runtime::{Builder, Runtime};
 
 const DEFAULT_MAX_IO: usize = 4;
 
+/// JavaScript-facing download options.
 #[napi(object)]
 pub struct NativeDownloadOptions {
+    /// Source URL to download.
     pub url: String,
+    /// Final output path.
     pub target_path: String,
+    /// Requested chunk size as a decimal string. Missing or `0` selects the default.
     pub chunk_size: Option<String>,
+    /// Requested chunk parallelism.
     pub parallelism: Option<u32>,
+    /// Maximum chunks to download at the same time.
     pub max_parallel_chunks: Option<u32>,
+    /// Maximum in-flight I/O operations.
     pub max_io: Option<u32>,
+    /// Number of retries after the first attempt.
     pub max_retries: Option<u32>,
+    /// Initial retry backoff in milliseconds.
     pub backoff_initial_ms: Option<u32>,
+    /// Maximum retry backoff in milliseconds.
     pub backoff_max_ms: Option<u32>,
+    /// Connection timeout in milliseconds.
     pub connect_timeout_ms: Option<u32>,
+    /// Per-read timeout in milliseconds.
     pub read_timeout_ms: Option<u32>,
+    /// Total timeout per probe/chunk attempt in milliseconds.
     pub total_timeout_ms: Option<u32>,
+    /// Aggregate response-body bandwidth limit as a decimal string.
     pub bytes_per_second_limit: Option<String>,
+    /// General hash verification configuration.
     pub hash: Option<NativeHashConfig>,
+    /// Legacy SHA-256 expected digest string.
     pub sha256: Option<String>,
 }
 
+/// JavaScript-facing hash verification configuration.
 #[napi(object)]
 pub struct NativeHashConfig {
+    /// Hash algorithm name, such as `sha256`, `sha1`, `sha512`, `md5`, or `crc32`.
     pub kind: String,
+    /// Expected digest as lowercase or uppercase hex, with an optional algorithm prefix.
     pub expected: String,
 }
 
+/// JavaScript-facing download progress snapshot.
 #[napi(object)]
 pub struct NativeDownloadSnapshot {
+    /// Current lifecycle phase.
     pub phase: String,
+    /// Total content length as a decimal string.
     pub content_len: String,
+    /// Number of bytes represented by committed chunks as a decimal string.
     pub downloaded_bytes: String,
+    /// Chunk size as a decimal string.
     pub chunk_size: String,
+    /// Total chunk count as a decimal string.
     pub chunk_count: String,
+    /// Completed chunk count as a decimal string.
     pub completed_chunks: String,
+    /// Current number of active I/O operations.
     pub active_io: u32,
+    /// Last failure message, when present.
     pub last_error: Option<String>,
 }
 
+/// Downloads a URL to completion from JavaScript.
+///
+/// # Errors
+///
+/// Returns an error if options cannot be parsed, the native engine cannot be
+/// created, or the download fails.
 #[napi(js_name = "nativeDownloadToCompletion")]
 pub async fn native_download_to_completion(
     options: NativeDownloadOptions,
@@ -63,6 +97,7 @@ pub async fn native_download_to_completion(
     Ok(snapshot.into())
 }
 
+/// JavaScript-owned download task that supports start, pause, cancel, and polling.
 #[napi]
 pub struct NativeDownloadTask {
     runtime: Runtime,
@@ -71,6 +106,12 @@ pub struct NativeDownloadTask {
 
 #[napi]
 impl NativeDownloadTask {
+    /// Creates a new JavaScript download task.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if options cannot be parsed, the native engine cannot
+    /// be created, or the Tokio runtime cannot be initialized.
     #[napi(constructor)]
     pub fn new(options: NativeDownloadOptions) -> Result<Self> {
         let max_io = max_io_from_options(&options);
@@ -87,26 +128,45 @@ impl NativeDownloadTask {
         })
     }
 
+    /// Starts or resumes the download.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the task is already running.
     #[napi]
     pub fn start(&self) -> Result<()> {
         self.handle.start_on(&self.runtime).map_err(to_napi_error)
     }
 
+    /// Requests that the download pause.
+    ///
+    /// # Errors
+    ///
+    /// This method currently does not fail, but returns `Result` to preserve the
+    /// JavaScript API shape.
     #[napi]
     pub fn pause(&self) -> Result<()> {
         self.handle.pause().map_err(to_napi_error)
     }
 
+    /// Requests cancellation of the download.
+    ///
+    /// # Errors
+    ///
+    /// This method currently does not fail, but returns `Result` to preserve the
+    /// JavaScript API shape.
     #[napi]
     pub fn cancel(&self) -> Result<()> {
         self.handle.cancel().map_err(to_napi_error)
     }
 
+    /// Returns the latest download snapshot.
     #[napi]
     pub fn snapshot(&self) -> NativeDownloadSnapshot {
         self.handle.snapshot().into()
     }
 
+    /// Returns the serialized completion bitmap.
     #[napi]
     pub fn bitmap(&self) -> Buffer {
         self.handle.bitmap().into()

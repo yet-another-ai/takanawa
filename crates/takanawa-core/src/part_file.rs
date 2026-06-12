@@ -9,6 +9,7 @@ use crate::chunk::{ChunkPlan, normalize_chunk_size};
 use crate::metadata::{PartMetadata, RemoteInfo, slot_size_for};
 use crate::{HashConfig, HashVerifier, Result, TakanawaError, hash_url};
 
+/// Resumable on-disk part file with metadata slots and an exclusive lock.
 #[derive(Debug)]
 pub struct PartFile {
     file: File,
@@ -21,6 +22,16 @@ pub struct PartFile {
 }
 
 impl PartFile {
+    /// Opens an existing compatible part file or creates a new one.
+    ///
+    /// The target file must not already exist. The companion `.part.lock` file
+    /// is locked for the lifetime of the returned value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the target exists, the part file is locked by
+    /// another process, existing metadata is corrupt or incompatible, the part
+    /// file size is unexpected, or filesystem operations fail.
     pub fn open_or_create(
         target_path: &Path,
         url: &str,
@@ -94,15 +105,25 @@ impl PartFile {
     }
 
     #[must_use]
+    /// Returns the current part metadata.
     pub const fn metadata(&self) -> &PartMetadata {
         &self.metadata
     }
 
     #[must_use]
+    /// Returns indexes of chunks that still need to be downloaded.
     pub fn incomplete_chunks(&self) -> Vec<u64> {
         self.metadata.bitmap.incomplete_indices()
     }
 
+    /// Writes and commits a complete chunk.
+    ///
+    /// Already completed chunks are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `index` is outside the chunk plan, `bytes` does not
+    /// exactly match the chunk length, metadata cannot be updated, or I/O fails.
     pub fn write_chunk(&mut self, index: u64, bytes: &[u8]) -> Result<()> {
         let plan = ChunkPlan::new(self.metadata.content_len, self.metadata.chunk_size)?;
         let chunk = plan.chunk(index)?;
@@ -121,6 +142,15 @@ impl PartFile {
         self.commit_chunk(index)
     }
 
+    /// Writes bytes into a chunk without marking the chunk complete.
+    ///
+    /// This supports streaming partial responses. Call [`Self::commit_chunk`]
+    /// only after the full chunk has been written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the chunk index or write range is invalid, the byte
+    /// length cannot fit in file offsets, or I/O fails.
     pub fn write_chunk_bytes(&mut self, index: u64, chunk_offset: u64, bytes: &[u8]) -> Result<()> {
         let plan = ChunkPlan::new(self.metadata.content_len, self.metadata.chunk_size)?;
         let chunk = plan.chunk(index)?;
@@ -148,6 +178,14 @@ impl PartFile {
         Ok(())
     }
 
+    /// Marks a previously written chunk complete and persists metadata.
+    ///
+    /// Already completed chunks are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `index` is outside the chunk plan, metadata
+    /// generation overflows, metadata cannot be encoded, or I/O fails.
     pub fn commit_chunk(&mut self, index: u64) -> Result<()> {
         let plan = ChunkPlan::new(self.metadata.content_len, self.metadata.chunk_size)?;
         let _chunk = plan.chunk(index)?;
@@ -161,6 +199,15 @@ impl PartFile {
         self.commit_metadata()
     }
 
+    /// Verifies and promotes the part file to the final target path.
+    ///
+    /// This consumes the part file, truncates away metadata slots, renames the
+    /// `.part` file to `target_path`, and releases the lock.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the target exists, not all chunks are complete, hash
+    /// verification fails, or filesystem operations fail.
     pub fn finalize(mut self, target_path: &Path) -> Result<()> {
         if target_path.exists() {
             return Err(TakanawaError::TargetExists(target_path.to_owned()));
@@ -226,6 +273,7 @@ impl PartFile {
 }
 
 #[must_use]
+/// Returns the companion `.part` path for a target file.
 pub fn part_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part");
@@ -233,6 +281,7 @@ pub fn part_path_for(target_path: &Path) -> PathBuf {
 }
 
 #[must_use]
+/// Returns the companion `.part.lock` path for a target file.
 pub fn part_lock_path_for(target_path: &Path) -> PathBuf {
     let mut value: OsString = target_path.as_os_str().to_owned();
     value.push(".part.lock");

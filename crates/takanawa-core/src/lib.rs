@@ -1,4 +1,4 @@
-#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+//! Core resumable download primitives shared by the Takanawa front ends.
 
 mod bitmap;
 mod chunk;

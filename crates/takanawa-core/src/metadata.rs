@@ -4,6 +4,7 @@ use crate::bitmap::{ChunkBitmap, bitmap_len};
 use crate::chunk::{chunk_count_for, normalize_chunk_size};
 use crate::{HashConfig, Result, TakanawaError};
 
+/// Current on-disk part metadata version.
 pub const METADATA_VERSION: u16 = 2;
 
 const MAGIC: &[u8; 8] = b"TKNWPRT1";
@@ -33,27 +34,49 @@ const V1_ETAG_LEN_OFFSET: usize = 124;
 const V1_LAST_MODIFIED_LEN_OFFSET: usize = 126;
 const V1_SLOT_SIZE_OFFSET: usize = 128;
 
+/// Remote resource properties captured before a download starts or resumes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteInfo {
+    /// Total length of the remote resource in bytes.
     pub content_len: u64,
+    /// Remote `ETag` validator, when supplied by the server.
     pub etag: Option<String>,
+    /// Remote `Last-Modified` validator, when supplied by the server.
     pub last_modified: Option<String>,
 }
 
+/// Persisted state for a resumable part file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartMetadata {
+    /// Monotonic generation used to choose the newest metadata slot.
     pub generation: u64,
+    /// SHA-256 hash of the source URL.
     pub url_hash: [u8; 32],
+    /// Total content length in bytes.
     pub content_len: u64,
+    /// Normalized chunk size in bytes.
     pub chunk_size: u64,
+    /// Number of chunks in the resource.
     pub chunk_count: u64,
+    /// Completion bitmap for all chunks.
     pub bitmap: ChunkBitmap,
+    /// Stored `ETag` validator, when available.
     pub etag: Option<String>,
+    /// Stored `Last-Modified` validator, when available.
     pub last_modified: Option<String>,
+    /// Optional final-file hash verification configuration.
     pub hash: HashConfig,
 }
 
 impl PartMetadata {
+    /// Creates metadata for a new part file.
+    ///
+    /// Passing `0` for `chunk_size` selects the default chunk size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the chunk size is invalid, validator headers are too
+    /// large for the metadata slot, or the completion bitmap cannot be sized.
     pub fn new(
         url_hash: [u8; 32],
         remote: &RemoteInfo,
@@ -83,11 +106,13 @@ impl PartMetadata {
     }
 
     #[must_use]
+    /// Returns the number of completed chunks.
     pub fn completed_chunks(&self) -> u64 {
         self.bitmap.complete_count()
     }
 
     #[must_use]
+    /// Returns the number of bytes represented by completed chunks.
     pub fn completed_bytes(&self) -> u64 {
         if self.chunk_count == 0 {
             return 0;
@@ -114,10 +139,17 @@ impl PartMetadata {
     }
 
     #[must_use]
+    /// Returns whether every chunk is complete.
     pub fn all_complete(&self) -> bool {
         self.bitmap.all_complete()
     }
 
+    /// Verifies that existing metadata still matches a remote resource and caller configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the URL hash, content length, available validators,
+    /// chunk size, or hash configuration differ from the stored metadata.
     pub fn ensure_compatible(
         &self,
         url_hash: [u8; 32],
@@ -165,6 +197,17 @@ impl PartMetadata {
         Ok(())
     }
 
+    /// Encodes this metadata into a fixed-size metadata slot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `slot_size` is invalid for this metadata, if header
+    /// values exceed their fixed capacities, or if supporting lengths overflow.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if fixed metadata constants no longer fit their encoded
+    /// integer fields.
     pub fn encode_slot(&self, slot_size: u64) -> Result<Vec<u8>> {
         let slot_len = usize::try_from(slot_size)
             .map_err(|_| TakanawaError::InvalidConfig("slot size overflow".to_owned()))?;
@@ -246,6 +289,13 @@ impl PartMetadata {
         Ok(slot)
     }
 
+    /// Decodes metadata from a fixed-size metadata slot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slot is too short, has an unsupported version,
+    /// fails CRC validation, has inconsistent lengths, or contains invalid
+    /// UTF-8/header/hash data.
     pub fn decode_slot(slot: &[u8]) -> Result<Self> {
         let decoded = decode_slot_header(slot)?;
 
@@ -441,6 +491,13 @@ fn decode_hash(slot: &[u8], offsets: MetadataOffsets) -> Result<HashConfig> {
     })
 }
 
+/// Returns the aligned metadata slot size for a content length and chunk size.
+///
+/// Passing `0` for `chunk_size` selects the default chunk size.
+///
+/// # Errors
+///
+/// Returns an error if the chunk size or bitmap length is invalid.
 pub fn slot_size_for(content_len: u64, chunk_size: u64) -> Result<u64> {
     let chunk_size = normalize_chunk_size(chunk_size)?;
     let chunk_count = chunk_count_for(content_len, chunk_size);

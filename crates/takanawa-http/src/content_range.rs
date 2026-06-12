@@ -1,12 +1,22 @@
 use takanawa_core::{Result, TakanawaError};
 
+/// Parsed `Content-Range` header for a satisfied byte-range response.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContentRange {
+    /// Inclusive starting byte offset.
     pub start: u64,
+    /// Inclusive ending byte offset.
     pub end: u64,
+    /// Total resource length in bytes.
     pub total: u64,
 }
 
+/// Parses a satisfied `Content-Range` header.
+///
+/// # Errors
+///
+/// Returns an error if the header is malformed, uses an unsupported unit,
+/// contains an unknown total length, or describes invalid bounds.
 pub fn parse_content_range(value: &str) -> Result<ContentRange> {
     let value = value.trim();
     let Some(rest) = value.strip_prefix("bytes ") else {
@@ -49,6 +59,12 @@ pub fn parse_content_range(value: &str) -> Result<ContentRange> {
     Ok(ContentRange { start, end, total })
 }
 
+/// Parses the total length from an unsatisfied `Content-Range` header.
+///
+/// # Errors
+///
+/// Returns an error if the header is not an unsatisfied byte-range response or
+/// the total length cannot be parsed.
 pub fn parse_unsatisfied_total(value: &str) -> Result<u64> {
     let value = value.trim();
     let Some(rest) = value.strip_prefix("bytes */") else {

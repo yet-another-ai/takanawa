@@ -1,5 +1,6 @@
 use crate::{Result, TakanawaError};
 
+/// Compact completion bitmap for a fixed number of chunks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkBitmap {
     chunk_count: u64,
@@ -7,6 +8,11 @@ pub struct ChunkBitmap {
 }
 
 impl ChunkBitmap {
+    /// Creates an empty bitmap for `chunk_count` chunks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bitmap length cannot fit in memory indexes.
     pub fn new(chunk_count: u64) -> Result<Self> {
         let len = bitmap_len(chunk_count)?;
         Ok(Self {
@@ -15,6 +21,12 @@ impl ChunkBitmap {
         })
     }
 
+    /// Creates a bitmap from serialized bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte length does not match `chunk_count` or if
+    /// unused bits are set in the final byte.
     pub fn from_bytes(chunk_count: u64, bytes: Vec<u8>) -> Result<Self> {
         let expected = bitmap_len(chunk_count)?;
         if bytes.len() != expected {
@@ -30,37 +42,56 @@ impl ChunkBitmap {
     }
 
     #[must_use]
+    /// Returns the number of chunks tracked by the bitmap.
     pub const fn chunk_count(&self) -> u64 {
         self.chunk_count
     }
 
     #[must_use]
+    /// Returns the serialized bitmap bytes.
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
     #[must_use]
+    /// Consumes the bitmap and returns its serialized bytes.
     pub fn into_bytes(self) -> Vec<u8> {
         self.bytes
     }
 
+    /// Marks a chunk complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `index` is outside the bitmap.
     pub fn mark_complete(&mut self, index: u64) -> Result<()> {
         let (byte, mask) = self.bit_position(index)?;
         self.bytes[byte] |= mask;
         Ok(())
     }
 
+    /// Returns whether a chunk is complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `index` is outside the bitmap.
     pub fn is_complete(&self, index: u64) -> Result<bool> {
         let (byte, mask) = self.bit_position(index)?;
         Ok((self.bytes[byte] & mask) != 0)
     }
 
     #[must_use]
+    /// Returns whether all chunks are complete.
     pub fn all_complete(&self) -> bool {
         self.complete_count() == self.chunk_count
     }
 
     #[must_use]
+    /// Counts chunks marked complete.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the count of completed chunks does not fit in `u64`.
     pub fn complete_count(&self) -> u64 {
         (0..self.chunk_count)
             .filter(|index| self.is_complete(*index).unwrap_or(false))
@@ -70,6 +101,7 @@ impl ChunkBitmap {
     }
 
     #[must_use]
+    /// Returns indexes of chunks that are not yet complete.
     pub fn incomplete_indices(&self) -> Vec<u64> {
         (0..self.chunk_count)
             .filter(|index| !self.is_complete(*index).unwrap_or(false))
@@ -114,6 +146,11 @@ impl ChunkBitmap {
     }
 }
 
+/// Returns the number of bytes needed to store `chunk_count` completion bits.
+///
+/// # Errors
+///
+/// Returns an error if the byte length cannot fit in memory indexes.
 pub fn bitmap_len(chunk_count: u64) -> Result<usize> {
     usize::try_from(chunk_count.div_ceil(8))
         .map_err(|_| TakanawaError::InvalidConfig("bitmap length overflow".to_owned()))

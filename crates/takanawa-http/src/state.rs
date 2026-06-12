@@ -5,31 +5,50 @@ use std::sync::{Arc, Mutex};
 
 use takanawa_core::PartMetadata;
 
+/// Lifecycle phase reported for a download.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadPhase {
+    /// The download handle has been created but not started.
     Created = 0,
+    /// The download is actively probing, fetching, or finalizing.
     Running = 1,
+    /// The download is paused and can be started again.
     Paused = 2,
+    /// The download has been cancelled.
     Cancelled = 3,
+    /// The download finished successfully.
     Completed = 4,
+    /// The download failed.
     Failed = 5,
+    /// A pause was requested and in-flight work is winding down.
     Pausing = 6,
+    /// A cancellation was requested and in-flight work is winding down.
     Cancelling = 7,
 }
 
+/// Point-in-time download progress.
 #[derive(Debug, Clone)]
 pub struct DownloadSnapshot {
+    /// Current lifecycle phase.
     pub phase: DownloadPhase,
+    /// Total content length in bytes, or `0` before the remote probe completes.
     pub content_len: u64,
+    /// Number of bytes represented by committed chunks.
     pub downloaded_bytes: u64,
+    /// Chunk size in bytes, or `0` before metadata is available.
     pub chunk_size: u64,
+    /// Total chunk count, or `0` before metadata is available.
     pub chunk_count: u64,
+    /// Number of chunks committed complete.
     pub completed_chunks: u64,
+    /// Current number of active I/O operations.
     pub active_io: usize,
+    /// Last failure message, when the download failed.
     pub last_error: Option<String>,
 }
 
+/// Callback invoked when download progress changes.
 pub type ProgressCallback = Arc<dyn Fn(DownloadSnapshot) + Send + Sync + 'static>;
 
 #[derive(Debug, Clone)]
