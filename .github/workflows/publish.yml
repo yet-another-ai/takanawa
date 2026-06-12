@@ -211,7 +211,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
@@ -253,7 +253,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true

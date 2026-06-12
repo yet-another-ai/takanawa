@@ -9,6 +9,7 @@ export default defineConfig({
     logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
+      { text: 'Targets', link: '/guide/platforms' },
       { text: 'Format', link: '/part-format' },
       { text: 'API Docs', link: '/api/' },
     ],
@@ -18,7 +19,17 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Getting Started', link: '/guide/getting-started' },
-          { text: 'Platforms', link: '/guide/platforms' },
+        ],
+      },
+      {
+        text: 'Targets',
+        items: [
+          { text: 'Target Matrix', link: '/guide/platforms' },
+          { text: 'Rust', link: '/guide/rust' },
+          { text: 'Node and Electron', link: '/guide/node' },
+          { text: 'Capacitor', link: '/guide/capacitor' },
+          { text: 'Android', link: '/guide/android' },
+          { text: 'Apple and SwiftPM', link: '/guide/apple' },
           { text: 'C and C++', link: '/guide/c-cpp' },
         ],
       },

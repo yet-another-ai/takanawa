@@ -12,6 +12,8 @@ downloads can resume automatically.
 - `takanawa-ffi`: C ABI wrapper built as `cdylib` and `staticlib`.
 - `takanawa-cli`: small dogfood CLI.
 - `android/takanawa-android`: Kotlin-first Android SDK published as an AAR.
+- `packages/takanawa-js-core`: Private shared TypeScript facade bundled into
+  npm target packages.
 - `packages/takanawa-node`: Node.js and Electron bindings published to npm.
 - `packages/takanawa-capacitor`: Capacitor plugin published to npm. The plugin
   ships Android and iOS bridge source and depends on the Android AAR and SwiftPM
@@ -37,9 +39,10 @@ mise run version:sync
 
 The `npm` GitHub Actions workflow publishes all non-private packages under
 `packages/*` when a `v*` tag is pushed. This includes `takanawa-node` and
-`takanawa-capacitor`. The workflow builds each package before `npm publish` so
-generated `dist` files and native Node artifacts are included in the packed
-tarball.
+`takanawa-capacitor`. The private `takanawa-js-core` package is bundled into
+those target packages at build time and is not published separately. The
+workflow builds each package before `npm publish` so generated `dist` files and
+native Node artifacts are included in the packed tarball.
 
 ## Android
 

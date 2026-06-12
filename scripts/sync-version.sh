@@ -42,11 +42,19 @@ fi
 android_version_reference_files=(
   README.md
   docs/api/index.md
-  docs/guide/getting-started.md
+  docs/guide/android.md
 )
 
 for file in "${android_version_reference_files[@]}"; do
   perl -0pi -e "s/(implementation\\(\"ai\\.yetanother:takanawa-android:)[^\"]+(\"\\))/\${1}${version}\${2}/g" "$file"
+done
+
+apple_version_reference_files=(
+  docs/guide/apple.md
+)
+
+for file in "${apple_version_reference_files[@]}"; do
+  perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/g" "$file"
 done
 
 echo "Synced release version references to $version"

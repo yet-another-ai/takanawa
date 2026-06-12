@@ -1,117 +1,154 @@
-import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
+import { registerPlugin } from '@capacitor/core'
+import {
+  createTakanawaApi,
+  decodeBase64ToUint8Array,
+  type DownloadListenerHandle as CoreDownloadListenerHandle,
+  type DownloadOptions as CoreDownloadOptions,
+  type DownloadProgressListener as CoreDownloadProgressListener,
+  type DownloadSnapshot as CoreDownloadSnapshot,
+  type TakanawaTargetAdapter
+} from 'takanawa-js-core'
 
 import type { TakanawaCapacitorPlugin } from './definitions'
-import {
-  decodeBase64ToUint8Array,
-  mapSnapshot,
-  normalizeOptions,
-  type DownloadOptions,
-  type DownloadPhase,
-  type DownloadSnapshot,
-  type HashConfig,
-  type HashKind
-} from './shared'
 
 const TakanawaCapacitor = registerPlugin<TakanawaCapacitorPlugin>('TakanawaCapacitor', {
   web: () => import('./web').then((module) => new module.TakanawaCapacitorWeb())
 })
 
-export type { DownloadOptions, DownloadPhase, DownloadSnapshot, HashConfig, HashKind }
+export type DownloadPhase =
+  | 'created'
+  | 'running'
+  | 'pausing'
+  | 'paused'
+  | 'cancelling'
+  | 'cancelled'
+  | 'completed'
+  | 'failed'
 
-export class DownloadTask {
-  readonly #options: DownloadOptions
-  #taskId?: string
-  #taskIdPromise?: Promise<string>
-  #closed = false
+export type HashKind = 'sha1' | 'sha256' | 'sha512' | 'md5' | 'crc32'
 
-  constructor(options: DownloadOptions) {
-    this.#options = options
-  }
+export interface HashConfig {
+  kind: HashKind
+  expected: string
+}
 
-  async start(): Promise<void> {
-    const taskId = await this.#ensureTaskId()
-    await TakanawaCapacitor.start({ taskId })
-  }
+export interface DownloadOptions {
+  url: string
+  targetPath: string
+  chunkSize?: bigint | number | string
+  parallelism?: number
+  maxParallelChunks?: number
+  maxIo?: number
+  maxRetries?: number
+  backoffInitialMs?: number
+  backoffMaxMs?: number
+  connectTimeoutMs?: number
+  readTimeoutMs?: number
+  totalTimeoutMs?: number
+  bytesPerSecondLimit?: bigint | number | string
+  hash?: HashConfig | `${HashKind}:${string}`
+  /**
+   * @deprecated Use `hash: { kind: 'sha256', expected: value }` instead.
+   */
+  sha256?: string
+}
 
-  async pause(): Promise<void> {
-    const taskId = await this.#ensureTaskId()
-    await TakanawaCapacitor.pause({ taskId })
-  }
+export interface DownloadSnapshot {
+  phase: DownloadPhase
+  contentLen: bigint
+  downloadedBytes: bigint
+  chunkSize: bigint
+  chunkCount: bigint
+  completedChunks: bigint
+  activeIo: number
+  lastError?: string
+}
 
-  async cancel(): Promise<void> {
-    const taskId = await this.#ensureTaskId()
-    await TakanawaCapacitor.cancel({ taskId })
-  }
+export type DownloadProgressListener = (snapshot: DownloadSnapshot) => void
 
-  async snapshot(): Promise<DownloadSnapshot> {
-    const taskId = await this.#ensureTaskId()
+export interface DownloadListenerHandle {
+  remove(): Promise<void>
+}
+
+const capacitorAdapter: TakanawaTargetAdapter<string> = {
+  async create(options) {
+    const { taskId } = await TakanawaCapacitor.create(options)
+    return taskId
+  },
+  start(taskId) {
+    return TakanawaCapacitor.start({ taskId })
+  },
+  pause(taskId) {
+    return TakanawaCapacitor.pause({ taskId })
+  },
+  cancel(taskId) {
+    return TakanawaCapacitor.cancel({ taskId })
+  },
+  async snapshot(taskId) {
     const { snapshot } = await TakanawaCapacitor.snapshot({ taskId })
-    return mapSnapshot(snapshot)
-  }
-
-  async bitmap(): Promise<Uint8Array> {
-    const taskId = await this.#ensureTaskId()
+    return snapshot
+  },
+  async bitmap(taskId) {
     const { data } = await TakanawaCapacitor.bitmap({ taskId })
     return decodeBase64ToUint8Array(data)
-  }
-
-  async close(): Promise<void> {
-    if (this.#closed) {
-      return
-    }
-    this.#closed = true
-    const taskIdPromise = this.#taskIdPromise
-    this.#taskIdPromise = undefined
-    this.#taskId = undefined
-    if (taskIdPromise === undefined) {
-      return
-    }
-    const taskId = await taskIdPromise
-    await TakanawaCapacitor.close({ taskId })
-  }
-
-  async addProgressListener(
-    listener: (snapshot: DownloadSnapshot) => void
-  ): Promise<PluginListenerHandle> {
-    const taskId = await this.#ensureTaskId()
+  },
+  close(taskId) {
+    return TakanawaCapacitor.close({ taskId })
+  },
+  async addProgressListener(taskId, listener) {
     const handle = await TakanawaCapacitor.addListener('downloadProgress', (event) => {
       if (event.taskId === taskId) {
-        listener(mapSnapshot(event.snapshot))
+        listener(event.snapshot)
       }
     })
-    try {
-      listener(await this.snapshot())
-    } catch (error) {
-      await handle.remove()
-      throw error
-    }
-    return handle
-  }
-
-  async #ensureTaskId(): Promise<string> {
-    if (this.#closed) {
-      throw new Error('download task is closed')
-    }
-    if (this.#taskId !== undefined) {
-      return this.#taskId
-    }
-    if (this.#taskIdPromise === undefined) {
-      this.#taskIdPromise = TakanawaCapacitor.create(normalizeOptions(this.#options)).then(
-        ({ taskId }) => {
-          this.#taskId = taskId
-          return taskId
-        },
-        (error: unknown) => {
-          this.#taskIdPromise = undefined
-          throw error
-        }
-      )
-    }
-    return this.#taskIdPromise
+    return {
+      remove: () => handle.remove()
+    } satisfies CoreDownloadListenerHandle
+  },
+  async downloadToCompletion(options) {
+    const { snapshot } = await TakanawaCapacitor.downloadToCompletion(options)
+    return snapshot
   }
 }
 
-export async function downloadToCompletion(options: DownloadOptions): Promise<DownloadSnapshot> {
-  const { snapshot } = await TakanawaCapacitor.downloadToCompletion(normalizeOptions(options))
-  return mapSnapshot(snapshot)
+const capacitorApi = createTakanawaApi(capacitorAdapter)
+
+export class DownloadTask {
+  readonly #inner: InstanceType<typeof capacitorApi.DownloadTask>
+
+  constructor(options: DownloadOptions) {
+    this.#inner = new capacitorApi.DownloadTask(options as CoreDownloadOptions)
+  }
+
+  start(): Promise<void> {
+    return this.#inner.start()
+  }
+
+  pause(): Promise<void> {
+    return this.#inner.pause()
+  }
+
+  cancel(): Promise<void> {
+    return this.#inner.cancel()
+  }
+
+  snapshot(): Promise<DownloadSnapshot> {
+    return this.#inner.snapshot() as Promise<DownloadSnapshot>
+  }
+
+  bitmap(): Promise<Uint8Array> {
+    return this.#inner.bitmap()
+  }
+
+  close(): Promise<void> {
+    return this.#inner.close()
+  }
+
+  addProgressListener(listener: DownloadProgressListener): Promise<DownloadListenerHandle> {
+    return this.#inner.addProgressListener(listener as CoreDownloadProgressListener)
+  }
+}
+
+export function downloadToCompletion(options: DownloadOptions): Promise<DownloadSnapshot> {
+  return capacitorApi.downloadToCompletion(options as CoreDownloadOptions) as Promise<CoreDownloadSnapshot> as Promise<DownloadSnapshot>
 }

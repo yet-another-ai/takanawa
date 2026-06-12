@@ -20,14 +20,18 @@
   },
   "files": [
     "README.md",
-    "dist",
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "dist/index.d.ts",
+    "dist/index.mjs",
+    "dist/index.mjs.map",
     "index.js",
     "*.node"
   ],
   "scripts": {
     "build": "pnpm run build:native && pnpm run build:ts",
     "build:native": "napi build --platform --release",
-    "build:ts": "vite build && tsc -p tsconfig.json --emitDeclarationOnly",
+    "build:ts": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-node/src/index.d.ts', 'dist/index.d.ts')\"",
     "dev:native": "napi build --platform",
     "dev:ts": "vite build --watch",
     "test": "node --test __test__/*.test.mjs"
