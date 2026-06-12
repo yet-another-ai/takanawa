@@ -94,28 +94,15 @@ public class TakanawaCapacitorPlugin: CAPPlugin, CAPBridgedPlugin {
         try? download.close()
       }
 
-      let terminalLock = NSLock()
-      var terminalSnapshot: DownloadSnapshot?
-      let terminal = DispatchSemaphore(value: 0)
+      let terminal = TerminalSnapshotBox()
       try download.setProgressCallback { snapshot in
         guard snapshot.phase.isTerminal else {
           return
         }
-        terminalLock.lock()
-        if terminalSnapshot == nil {
-          terminalSnapshot = snapshot
-          terminal.signal()
-        }
-        terminalLock.unlock()
+        terminal.complete(snapshot)
       }
       try download.start()
-      terminal.wait()
-
-      terminalLock.lock()
-      let snapshot = terminalSnapshot
-      terminalLock.unlock()
-
-      guard let snapshot else {
+      guard let snapshot = terminal.wait() else {
         throw TakanawaCapacitorError.invalidConfig("download ended before reaching a terminal phase")
       }
 
@@ -177,5 +164,32 @@ public class TakanawaCapacitorPlugin: CAPPlugin, CAPBridgedPlugin {
         }
       }
     }
+  }
+}
+
+private final class TerminalSnapshotBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private let semaphore = DispatchSemaphore(value: 0)
+  private var snapshot: DownloadSnapshot?
+
+  func complete(_ snapshot: DownloadSnapshot) {
+    lock.lock()
+    defer {
+      lock.unlock()
+    }
+    guard self.snapshot == nil else {
+      return
+    }
+    self.snapshot = snapshot
+    semaphore.signal()
+  }
+
+  func wait() -> DownloadSnapshot? {
+    semaphore.wait()
+    lock.lock()
+    defer {
+      lock.unlock()
+    }
+    return snapshot
   }
 }

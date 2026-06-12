@@ -11,7 +11,7 @@ internal enum TakanawaCapacitorOptions {
   private static let defaultMaxIo = 4
 
   static func parse(_ rawOptions: [AnyHashable: Any]) throws -> ParsedDownloadOptions {
-    let options = normalizeOptions(rawOptions)
+    let options = try normalizeOptions(rawOptions)
     let hash = try parseHash(options)
     let config = try DownloadConfig(
       url: requiredString(options, "url"),
@@ -36,14 +36,44 @@ internal enum TakanawaCapacitorOptions {
     )
   }
 
-  private static func normalizeOptions(_ options: [AnyHashable: Any]) -> JSObject {
+  private static func normalizeOptions(_ options: [AnyHashable: Any]) throws -> JSObject {
     var normalized = JSObject()
     for (key, value) in options {
       if let key = key as? String {
-        normalized[key] = value
+        normalized[key] = try normalizeValue(value, path: key)
       }
     }
     return normalized
+  }
+
+  private static func normalizeObject(_ options: [String: Any], path: String) throws -> JSObject {
+    var normalized = JSObject()
+    for (key, value) in options {
+      normalized[key] = try normalizeValue(value, path: "\(path).\(key)")
+    }
+    return normalized
+  }
+
+  private static func normalizeArray(_ values: [Any], path: String) throws -> JSArray {
+    try values.enumerated().map { index, value in
+      try normalizeValue(value, path: "\(path)[\(index)]")
+    }
+  }
+
+  private static func normalizeValue(_ value: Any, path: String) throws -> any JSValue {
+    if let object = value as? [String: Any] {
+      return try normalizeObject(object, path: path)
+    }
+    if let object = value as? [AnyHashable: Any] {
+      return try normalizeOptions(object)
+    }
+    if let array = value as? [Any] {
+      return try normalizeArray(array, path: path)
+    }
+    if let jsValue = value as? any JSValue {
+      return jsValue
+    }
+    throw TakanawaCapacitorError.invalidConfig("\(path) must be a JSON-compatible value")
   }
 
   private static func parseHash(_ options: JSObject) throws -> (kind: HashKind, expected: Data?) {
