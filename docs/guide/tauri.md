@@ -4,6 +4,10 @@ Use `takanawa-tauri` in Tauri v2 desktop apps. The frontend package shares the
 same TypeScript surface as `takanawa-node`, while the Rust plugin compiles into
 your Tauri application and calls the Takanawa HTTP engine directly.
 
+The frontend npm package is `takanawa-tauri`. The Rust crate is
+`tauri-plugin-takanawa`, and the crate exposes the `takanawa_tauri` library name
+used in the builder registration below.
+
 ## Install
 
 Install the frontend package:
@@ -95,5 +99,5 @@ pnpm --filter takanawa-tauri test
 Run Rust plugin tests:
 
 ```sh
-cargo test -p takanawa-tauri
+cargo test -p tauri-plugin-takanawa
 ```
