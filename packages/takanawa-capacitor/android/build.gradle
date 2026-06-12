@@ -10,7 +10,7 @@ buildscript {
 
 apply plugin: 'com.android.library'
 
-def takanawaVersion = "0.4.3"
+def takanawaVersion = "0.4.4"
 
 android {
     namespace "ai.yetanother.takanawa.capacitor"
