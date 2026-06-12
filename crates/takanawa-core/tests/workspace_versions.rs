@@ -80,19 +80,12 @@ fn published_version_references_match_workspace_version() {
 
     let version_literals = [
         ("README.md", "takanawa-android"),
-        ("docs/api/index.md", "takanawa-android"),
-        ("docs/guide/android.md", "takanawa-android"),
-        ("docs/guide/apple.md", "takanawa.git\", exact"),
         (
             "packages/takanawa-capacitor/ios/Package.swift",
             "takanawa.git\", exact",
         ),
         ("Cargo.toml", "takanawa-core"),
         ("Cargo.toml", "takanawa-http"),
-        (
-            "docs/guide/tauri.md",
-            "tauri-plugin-takanawa\", version = \"",
-        ),
         (
             "packages/takanawa-tauri/README.md",
             "tauri-plugin-takanawa\", version = \"",
@@ -113,6 +106,41 @@ fn published_version_references_match_workspace_version() {
                 || contents.contains(&format!("{nearby_text} {workspace_version}"))
                 || contents.contains(&format!("{nearby_text}: \"{workspace_version}\"")),
             "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync` after changing the workspace version"
+        );
+    }
+
+    let vitepress_version_variables = [
+        (
+            "docs/api/index.md",
+            r#"implementation("ai.yetanother:takanawa-android:{{ takanawaVersion }}")"#,
+        ),
+        (
+            "docs/guide/android.md",
+            r#"implementation("ai.yetanother:takanawa-android:{{ takanawaVersion }}")"#,
+        ),
+        (
+            "docs/guide/apple.md",
+            r#".package(url: "https://github.com/yetanother.ai/takanawa.git", exact: "{{ takanawaVersion }}")"#,
+        ),
+        (
+            "docs/guide/rust.md",
+            r#"takanawa-core = "{{ takanawaVersion }}""#,
+        ),
+        (
+            "docs/guide/rust.md",
+            r#"takanawa-http = "{{ takanawaVersion }}""#,
+        ),
+        (
+            "docs/guide/tauri.md",
+            r#"takanawa-tauri = { package = "tauri-plugin-takanawa", version = "{{ takanawaVersion }}" }"#,
+        ),
+    ];
+    for (relative_path, expected_fragment) in vitepress_version_variables {
+        let contents = fs::read_to_string(workspace_root.join(relative_path))
+            .unwrap_or_else(|error| panic!("{relative_path} should be readable: {error}"));
+        assert!(
+            contents.contains(expected_fragment),
+            "{relative_path} must use the VitePress takanawaVersion variable instead of a literal release version"
         );
     }
 

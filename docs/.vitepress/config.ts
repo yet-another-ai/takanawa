@@ -1,10 +1,30 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vitepress'
+
+const workspaceCargoToml = readFileSync(new URL('../../Cargo.toml', import.meta.url), 'utf8')
+const takanawaVersion = workspaceCargoToml.match(
+  /^\[workspace\.package\][\s\S]*?^version = "([^"]+)"/m,
+)?.[1]
+
+if (!takanawaVersion) {
+  throw new Error('missing [workspace.package] version in Cargo.toml')
+}
+
+const replaceMarkdownVariables = (source: string) =>
+  source.replace(/\{\{\s*takanawaVersion\s*\}\}/g, takanawaVersion)
 
 export default defineConfig({
   title: 'Takanawa',
   description: 'A Rust range-download library for resilient cross-platform downloads.',
   cleanUrls: true,
   lastUpdated: true,
+  markdown: {
+    config(md) {
+      md.core.ruler.before('normalize', 'takanawa-variables', (state) => {
+        state.src = replaceMarkdownVariables(state.src)
+      })
+    },
+  },
   themeConfig: {
     logo: '/logo.svg',
     nav: [
