@@ -53,6 +53,19 @@ Verify the SwiftPM smoke test:
 mise run test:swift-integration
 ```
 
+## Capacitor
+
+Install the Capacitor plugin in a Capacitor v8 app:
+
+```sh
+pnpm add takanawa-capacitor
+npx cap sync
+```
+
+The plugin exposes `DownloadTask` and `downloadToCompletion` with the same
+option names as the Node package. Large counters are returned as `bigint` in
+TypeScript.
+
 ## C and C++
 
 Build and link the C ABI library with CMake:

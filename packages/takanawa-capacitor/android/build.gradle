@@ -1,0 +1,49 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:9.2.0'
+    }
+}
+
+apply plugin: 'com.android.library'
+
+def takanawaVersion = "0.4.0"
+
+android {
+    namespace "ai.yetanother.takanawa.capacitor"
+    compileSdk = rootProject.ext.has("compileSdkVersion") ? rootProject.ext.compileSdkVersion as int : 36
+
+    defaultConfig {
+        minSdk = rootProject.ext.has("minSdkVersion") ? rootProject.ext.minSdkVersion as int : 23
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    testOptions {
+        unitTests.includeAndroidResources = false
+    }
+}
+
+dependencies {
+    def capacitorAndroid = findProject(":capacitor-android")
+    if (capacitorAndroid == null) {
+        throw new GradleException("takanawa-capacitor requires the :capacitor-android Gradle project from @capacitor/android")
+    }
+    implementation capacitorAndroid
+
+    def takanawaAndroid = findProject(":takanawa-android")
+    if (takanawaAndroid != null) {
+        implementation takanawaAndroid
+    } else {
+        implementation "ai.yetanother:takanawa-android:$takanawaVersion"
+    }
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.jetbrains.kotlin:kotlin-test:2.2.10"
+}

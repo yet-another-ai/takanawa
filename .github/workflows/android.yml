@@ -38,6 +38,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Install npm dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Check Rust workspace
         run: mise run check
 
@@ -46,6 +49,9 @@ jobs:
 
       - name: Run Android unit tests
         run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:test
+
+      - name: Run Capacitor Android unit tests
+        run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-capacitor:test
 
       - name: Build and verify Android release AAR
         run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:assembleRelease :takanawa-android:verifyReleaseAar

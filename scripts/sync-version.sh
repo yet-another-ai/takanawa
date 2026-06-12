@@ -31,6 +31,14 @@ for file in "${npm_package_manifests[@]}"; do
   perl -0pi -e "s/(^\\s*\"version\": \")[^\"]+(\")/\${1}${version}\${2}/m" "$file"
 done
 
+if [[ -f packages/takanawa-capacitor/android/build.gradle ]]; then
+  perl -0pi -e "s/(def takanawaVersion = \")[^\"]+(\")/\${1}${version}\${2}/" packages/takanawa-capacitor/android/build.gradle
+fi
+
+if [[ -f packages/takanawa-capacitor/ios/Package.swift ]]; then
+  perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/" packages/takanawa-capacitor/ios/Package.swift
+fi
+
 android_version_reference_files=(
   README.md
   docs/api/index.md
