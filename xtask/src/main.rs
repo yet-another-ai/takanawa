@@ -522,7 +522,6 @@ fn check_csharp() -> Result<()> {
         "fixtures/csharp-smoke/YetAnotherAI.Takanawa.Smoke.csproj",
         "--configuration",
         "Release",
-        "--no-restore",
     ]);
     prepend_dynamic_library_path(&mut smoke, &native_dir);
     run_command(&mut smoke)?;
