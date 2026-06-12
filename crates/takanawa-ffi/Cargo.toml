@@ -17,7 +17,8 @@ crate-type = ["cdylib", "staticlib"]
 default = ["tls-rustls"]
 jni = ["dep:jni"]
 tls-rustls = ["takanawa-http/tls-rustls"]
-tls-platform-roots = ["takanawa-http/tls-platform-roots"]
+tls-platform-native = ["takanawa-http/tls-platform-native"]
+tls-platform-roots = ["tls-platform-native"]
 
 [dependencies]
 jni = { version = "0.21", optional = true }

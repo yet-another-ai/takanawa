@@ -24,7 +24,9 @@ downloads can resume automatically.
   Tauri app.
 
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
-feature. Platform certificate roots are reserved for a future feature flag.
+feature. Platform-native TLS can be selected with `default-features = false`
+and the `tls-platform-native` or `tls-platform-roots` feature. That backend
+uses the operating system TLS stack on Windows and macOS, and OpenSSL on Linux.
 
 ## Versioning
 

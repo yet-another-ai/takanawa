@@ -10,11 +10,17 @@ repository.workspace = true
 crate-type = ["cdylib"]
 name = "takanawa_node"
 
+[features]
+default = ["tls-rustls"]
+tls-rustls = ["takanawa-http/tls-rustls"]
+tls-platform-native = ["takanawa-http/tls-platform-native"]
+tls-platform-roots = ["tls-platform-native"]
+
 [dependencies]
 napi.workspace = true
 napi-derive.workspace = true
 takanawa-core.workspace = true
-takanawa-http = { workspace = true, features = ["tls-rustls"] }
+takanawa-http = { workspace = true, default-features = false }
 tokio.workspace = true
 
 [lints]

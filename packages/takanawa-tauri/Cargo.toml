@@ -21,11 +21,17 @@ include = [
 [lib]
 name = "takanawa_tauri"
 
+[features]
+default = ["tls-rustls"]
+tls-rustls = ["takanawa-http/tls-rustls"]
+tls-platform-native = ["takanawa-http/tls-platform-native"]
+tls-platform-roots = ["tls-platform-native"]
+
 [dependencies]
 base64.workspace = true
 serde.workspace = true
 takanawa-core.workspace = true
-takanawa-http = { workspace = true, features = ["tls-rustls"] }
+takanawa-http = { workspace = true, default-features = false }
 tauri.workspace = true
 tokio.workspace = true
 

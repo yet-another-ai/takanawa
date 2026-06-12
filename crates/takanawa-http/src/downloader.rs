@@ -199,7 +199,11 @@ impl DownloadEngine {
 
 fn client_builder() -> reqwest::ClientBuilder {
     let builder = Client::builder();
-    #[cfg(feature = "tls-rustls")]
+    #[cfg(feature = "tls-platform-native")]
+    {
+        return builder.tls_backend_native();
+    }
+    #[cfg(all(feature = "tls-rustls", not(feature = "tls-platform-native")))]
     {
         let roots = rustls::RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
