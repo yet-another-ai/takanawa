@@ -89,6 +89,14 @@ fn published_version_references_match_workspace_version() {
         ),
         ("Cargo.toml", "takanawa-core"),
         ("Cargo.toml", "takanawa-http"),
+        (
+            "docs/guide/tauri.md",
+            "tauri-plugin-takanawa\", version = \"",
+        ),
+        (
+            "packages/takanawa-tauri/README.md",
+            "tauri-plugin-takanawa\", version = \"",
+        ),
         ("CMakeLists.txt", "project(Takanawa VERSION"),
         ("ports/takanawa/vcpkg.json", "\"version\""),
     ];
@@ -101,6 +109,7 @@ fn published_version_references_match_workspace_version() {
                 || contents.contains(&format!(
                     "{nearby_text} = {{ version = \"{workspace_version}\""
                 ))
+                || contents.contains(&format!("{nearby_text}{workspace_version}"))
                 || contents.contains(&format!("{nearby_text} {workspace_version}"))
                 || contents.contains(&format!("{nearby_text}: \"{workspace_version}\"")),
             "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync` after changing the workspace version"

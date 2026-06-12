@@ -22,7 +22,6 @@ fi
 
 perl -0pi -e "s/(takanawa-core = \\{ version = \")[^\"]+(\", path = \"crates\\/takanawa-core\" \\})/\${1}${version}\${2}/" Cargo.toml
 perl -0pi -e "s/(takanawa-http = \\{ version = \")[^\"]+(\", path = \"crates\\/takanawa-http\")/\${1}${version}\${2}/" Cargo.toml
-perl -0pi -e "s/(takanawa-tauri = \\{ version = \")[^\"]+(\", path = \"packages\\/takanawa-tauri\" \\})/\${1}${version}\${2}/" Cargo.toml
 perl -0pi -e "s/(project\\(Takanawa VERSION )[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${version}/" CMakeLists.txt
 perl -0pi -e "s/(\"version\": \")[^\"]+(\")/\${1}${version}\${2}/" ports/takanawa/vcpkg.json
 
