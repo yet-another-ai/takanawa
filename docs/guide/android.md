@@ -9,7 +9,7 @@ Add the Maven Central artifact to the app or library module:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.4.0")
+    implementation("ai.yetanother:takanawa-android:0.4.2")
 }
 ```
 

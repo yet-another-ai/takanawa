@@ -5,7 +5,7 @@ import PackageDescription
 let useLocalTakanawa = ProcessInfo.processInfo.environment["TAKANAWA_CAPACITOR_USE_LOCAL_TAKANAWA"] == "1"
 let takanawaDependency: Package.Dependency = useLocalTakanawa ?
   .package(path: "../../..") :
-  .package(url: "https://github.com/yetanother.ai/takanawa.git", exact: "0.4.0")
+  .package(url: "https://github.com/yetanother.ai/takanawa.git", exact: "0.4.2")
 let capacitorSwiftPmDependency: Package.Dependency =
   .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.4")
 
