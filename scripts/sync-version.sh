@@ -31,14 +31,30 @@ for file in "${npm_package_manifests[@]}"; do
   perl -0pi -e "s/(^\\s*\"version\": \")[^\"]+(\")/\${1}${version}\${2}/m" "$file"
 done
 
+if [[ -f packages/takanawa-capacitor/android/build.gradle ]]; then
+  perl -0pi -e "s/(def takanawaVersion = \")[^\"]+(\")/\${1}${version}\${2}/" packages/takanawa-capacitor/android/build.gradle
+fi
+
+if [[ -f packages/takanawa-capacitor/ios/Package.swift ]]; then
+  perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/" packages/takanawa-capacitor/ios/Package.swift
+fi
+
 android_version_reference_files=(
   README.md
   docs/api/index.md
-  docs/guide/getting-started.md
+  docs/guide/android.md
 )
 
 for file in "${android_version_reference_files[@]}"; do
   perl -0pi -e "s/(implementation\\(\"ai\\.yetanother:takanawa-android:)[^\"]+(\"\\))/\${1}${version}\${2}/g" "$file"
+done
+
+apple_version_reference_files=(
+  docs/guide/apple.md
+)
+
+for file in "${apple_version_reference_files[@]}"; do
+  perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/g" "$file"
 done
 
 echo "Synced release version references to $version"

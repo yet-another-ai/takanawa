@@ -1,0 +1,57 @@
+{
+  "name": "takanawa-capacitor",
+  "version": "0.4.0",
+  "description": "Capacitor bindings for Takanawa downloads on Android and iOS.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yetanother.ai/takanawa.git",
+    "directory": "packages/takanawa-capacitor"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "README.md",
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "dist/index.d.ts",
+    "dist/index.mjs",
+    "dist/index.mjs.map",
+    "dist/web-*",
+    "android/build.gradle",
+    "android/src/main",
+    "ios/Package.swift",
+    "ios/Sources"
+  ],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-capacitor/src/index.d.ts', 'dist/index.d.ts')\"",
+    "test": "pnpm run build && node --test __test__/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=8 <9"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  }
+}

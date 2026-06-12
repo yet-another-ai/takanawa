@@ -1,8 +1,8 @@
 # API Docs
 
-Takanawa exposes the same download core through Rust crates and native platform
-packages. Published Rust APIs are documented on docs.rs, while platform SDKs are
-distributed through Maven Central and SwiftPM artifacts.
+Takanawa exposes the same download core through Rust crates, npm packages, and
+native platform packages. Published Rust APIs are documented on docs.rs, while
+platform SDKs are distributed through npm, Maven Central, and SwiftPM artifacts.
 
 ## Rust Crates
 
@@ -14,15 +14,25 @@ distributed through Maven Central and SwiftPM artifacts.
   library consumers.
 - [`takanawa-cli`](https://docs.rs/takanawa-cli): dogfood command-line client.
 
+## JavaScript Packages
+
+- `takanawa-node`: Node.js and Electron bindings built on Node-API.
+- `takanawa-capacitor`: Capacitor v8 plugin for Android and iOS apps.
+
+`takanawa-node` and `takanawa-capacitor` are built from the same internal
+TypeScript facade, so their public option names, listener handles, hash forms,
+phase strings, and snapshot fields stay aligned. That shared facade is bundled
+into each target package and is not published as a standalone npm package.
+
 ## Hash Verification
 
 Download configurations can request final file verification with SHA-1,
 SHA-256, SHA-512, MD5, or CRC32. Rust callers pass a `HashConfig` variant, the
 C ABI uses `hash_kind` with the expected digest bytes, Android uses
-`HashKind`/`expectedHash`, Swift uses `HashKind`/`expectedHash`, and Node.js
-uses `hash: { kind, expected }` or `hash: "kind:<hex>"`. Existing Android,
-Swift, and Node.js `expectedSha256`/`sha256` shortcuts continue to select
-SHA-256.
+`HashKind`/`expectedHash`, Swift uses `HashKind`/`expectedHash`, and the
+JavaScript packages use `hash: { kind, expected }` or `hash: "kind:<hex>"`.
+Existing Android, Swift, and JavaScript `expectedSha256`/`sha256` shortcuts
+continue to select SHA-256.
 
 Digest byte lengths are SHA-1 = 20, SHA-256 = 32, SHA-512 = 64, MD5 = 16, and
 CRC32 = 4 bytes. CRC32 is represented in standard big-endian hexadecimal order

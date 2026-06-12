@@ -12,6 +12,12 @@ downloads can resume automatically.
 - `takanawa-ffi`: C ABI wrapper built as `cdylib` and `staticlib`.
 - `takanawa-cli`: small dogfood CLI.
 - `android/takanawa-android`: Kotlin-first Android SDK published as an AAR.
+- `packages/takanawa-js-core`: Private shared TypeScript facade bundled into
+  npm target packages.
+- `packages/takanawa-node`: Node.js and Electron bindings published to npm.
+- `packages/takanawa-capacitor`: Capacitor plugin published to npm. The plugin
+  ships Android and iOS bridge source and depends on the Android AAR and SwiftPM
+  package at the same Takanawa version.
 
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform certificate roots are reserved for a future feature flag.
@@ -28,6 +34,15 @@ After changing the workspace version, run:
 ```sh
 mise run version:sync
 ```
+
+## npm
+
+The `npm` GitHub Actions workflow publishes all non-private packages under
+`packages/*` when a `v*` tag is pushed. This includes `takanawa-node` and
+`takanawa-capacitor`. The private `takanawa-js-core` package is bundled into
+those target packages at build time and is not published separately. The
+workflow builds each package before `npm publish` so generated `dist` files and
+native Node artifacts are included in the packed tarball.
 
 ## Android
 
@@ -83,6 +98,9 @@ The release job builds the Android native libraries and runs:
 ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:publishAndReleaseToMavenCentral
 ```
 
+The Capacitor plugin does not publish a separate Maven artifact; its Android
+bridge is distributed in the npm package and depends on `takanawa-android`.
+
 ## SwiftPM
 
 The SwiftPM package is distributed as a prebuilt `Takanawa.xcframework`.
@@ -101,6 +119,10 @@ The checked-in `Package.swift` uses the local `target/apple/Takanawa.xcframework
 path so development and CI do not need to precompute a future release checksum.
 Release builds generate `target/swiftpm/Package.swift` with the checksum for the
 uploaded `Takanawa.xcframework.zip`.
+
+The Capacitor plugin does not publish a separate SwiftPM release artifact. Its
+iOS bridge is distributed in the npm package, and `packages/takanawa-capacitor/ios/Package.swift`
+depends on this SwiftPM package at the same release version.
 
 ## C and C++
 

@@ -46,7 +46,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
@@ -58,7 +58,9 @@ jobs:
           ndk-version: r28c
       - uses: Swatinem/rust-cache@v2
       - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
       - run: mise run package:android-aar
+      - run: ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-capacitor:test
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-android-aar
@@ -74,6 +76,7 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - run: mise run package:apple
+      - run: mise run test:capacitor-ios
       - run: mise run test:swift-integration
       - uses: actions/upload-artifact@v4
         with:

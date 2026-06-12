@@ -184,6 +184,7 @@ jobs:
           tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
 
           mise run package:apple
+          mise run test:capacitor-ios
           mise run test:swift-integration
           mise run swiftpm:release-manifest
           cp target/swiftpm/Takanawa.xcframework.zip target/dist/
@@ -210,7 +211,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true
@@ -252,7 +253,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: jdx/mise-action@v2
         with:
           experimental: true

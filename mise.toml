@@ -2,7 +2,7 @@
 lockfile = true
 
 [tools]
-java = "temurin-17"
+java = "temurin-21"
 node = "lts"
 pnpm = "latest"
 rust = { version = "latest", components = "rustfmt,clippy" }
@@ -85,6 +85,21 @@ outputs = ["target/android/jniLibs"]
 description = "Run Android SDK unit tests"
 run = "./gradlew :takanawa-android:test"
 sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties"]
+
+[tasks."test:capacitor-android"]
+description = "Run Capacitor Android plugin unit tests"
+run = "./gradlew :takanawa-capacitor:test"
+sources = ["packages/takanawa-capacitor/android/**/*.kt", "packages/takanawa-capacitor/android/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties"]
+
+[tasks."build:capacitor-js"]
+description = "Build the Capacitor TypeScript package"
+run = "pnpm --filter takanawa-capacitor build"
+sources = ["packages/takanawa-capacitor/src/**/*.ts", "packages/takanawa-capacitor/package.json", "packages/takanawa-capacitor/tsconfig.json", "packages/takanawa-capacitor/vite.config.ts", "pnpm-lock.yaml"]
+
+[tasks."test:capacitor-ios"]
+description = "Build the Capacitor iOS plugin against the local Takanawa SwiftPM package"
+run = "bash scripts/test-capacitor-ios.sh"
+sources = ["packages/takanawa-capacitor/ios/**/*.swift", "packages/takanawa-capacitor/ios/Package.swift", "scripts/test-capacitor-ios.sh", "Package.swift", "target/apple/Takanawa.xcframework"]
 
 [tasks."package:android-aar"]
 description = "Build and verify the Android release AAR"

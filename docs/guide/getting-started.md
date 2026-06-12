@@ -1,9 +1,26 @@
 # Getting Started
 
 Takanawa is organized as a Rust workspace with a core planner, an HTTP download
-engine, native FFI bindings, and packaging for Android and Apple platforms.
+engine, native FFI bindings, and package targets for JavaScript, Android, Apple,
+and C/C++ consumers.
 
-## Rust Workspace
+Start from the target you are integrating:
+
+- [Rust](./rust): use the workspace crates directly.
+- [Node and Electron](./node): install the Node-API npm package.
+- [Capacitor](./capacitor): install the Capacitor v8 npm plugin for Android and
+  iOS apps.
+- [Android](./android): install the Kotlin-first AAR from Maven Central.
+- [Apple and SwiftPM](./apple): install the SwiftPM package backed by the
+  prebuilt XCFramework.
+- [C and C++](./c-cpp): link the C ABI library through CMake or vcpkg.
+
+Use the [target matrix](./platforms) when deciding which package matches a
+runtime.
+
+## Workspace Checks
+
+These commands are for contributors working in this repository.
 
 Run the full workspace check:
 
@@ -17,59 +34,8 @@ Run tests:
 mise run test
 ```
 
-Build all distributable platform artifacts:
+Build all distributable artifacts that are available on the current machine:
 
 ```sh
 mise run package
-```
-
-## Android
-
-The Android SDK is published as an AAR:
-
-```kotlin
-dependencies {
-    implementation("ai.yetanother:takanawa-android:0.4.0")
-}
-```
-
-Build and verify the local AAR:
-
-```sh
-mise run package:android-aar
-```
-
-## SwiftPM
-
-Build the Apple XCFramework and SwiftPM binary artifact:
-
-```sh
-mise run package:swiftpm
-```
-
-Verify the SwiftPM smoke test:
-
-```sh
-mise run test:swift-integration
-```
-
-## C and C++
-
-Build and link the C ABI library with CMake:
-
-```cmake
-add_subdirectory(path/to/takanawa)
-target_link_libraries(app PRIVATE Takanawa::takanawa)
-```
-
-Verify the CMake smoke test:
-
-```sh
-mise run test:cmake-integration
-```
-
-Use the local vcpkg overlay port when consuming from a vcpkg project:
-
-```sh
-vcpkg install takanawa --overlay-ports=/path/to/takanawa/ports
 ```

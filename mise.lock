@@ -9,12 +9,8 @@ version = "0.29.4"
 backend = "cargo:cbindgen"
 
 [[tools.java]]
-version = "temurin-17.0.19+10"
+version = "temurin-21.0.10+7.0.LTS"
 backend = "core:java"
-
-[tools.java."platforms.macos-arm64"]
-checksum = "sha256:8fa1eff40bb637a33613b2ccb8b12c70dc3661cc22cf8e784943715769a05336"
-url = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.19%2B10/OpenJDK17U-jdk_aarch64_mac_hotspot_17.0.19_10.tar.gz"
 
 [[tools.node]]
 version = "24.16.0"
@@ -34,5 +30,8 @@ url = "https://github.com/pnpm/pnpm/releases/download/v11.5.3/pnpm-darwin-arm64.
 provenance = "github-attestations"
 
 [[tools.rust]]
-version = "1.96.0"
+version = "nightly"
 backend = "core:rust"
+
+[tools.rust.options]
+components = "clippy,rustfmt"
