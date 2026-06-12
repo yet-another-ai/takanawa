@@ -1,9 +1,9 @@
 package ai.yetanother.takanawa.capacitor
 
 import java.io.Closeable
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Test
 
 class TakanawaTaskRegistryTest {
     @Test
@@ -25,7 +25,7 @@ class TakanawaTaskRegistryTest {
     fun rejectsUnknownTaskIds() {
         val registry = TakanawaTaskRegistry<FakeCloseable>()
 
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             registry.get("missing")
         }
     }
