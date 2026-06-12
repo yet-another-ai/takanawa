@@ -2,8 +2,11 @@ name: Publish
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -19,6 +22,30 @@ env:
   PUBLISH_CRATES: takanawa-core takanawa-http takanawa-ffi takanawa-cli tauri-plugin-takanawa
 
 jobs:
+  android-maven-local:
+    name: Android Maven local dry-run
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - uses: gradle/actions/setup-gradle@v4
+      - run: mise run publish:android-local
+
+  npm-publish-dry-run:
+    name: npm publish dry-run
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - run: mise run npm:publish-dry-run
+
   publish:
     name: Publish crates.io
     runs-on: ubuntu-latest

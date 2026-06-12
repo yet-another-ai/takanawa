@@ -68,27 +68,3 @@ jobs:
         with:
           name: takanawa-android-aar
           path: android/takanawa-android/build/outputs/aar/takanawa-android-release.aar
-
-  android-maven-local:
-    name: Android Maven local dry-run
-    runs-on: ubuntu-latest
-    needs: android
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-        with:
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: gradle/actions/setup-gradle@v4
-      - run: mise run publish:android-local
-
-  npm-publish-dry-run:
-    name: npm publish dry-run
-    runs-on: ubuntu-latest
-    if: github.ref_type != 'tag'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-        with:
-          experimental: true
-      - run: mise run npm:publish-dry-run
