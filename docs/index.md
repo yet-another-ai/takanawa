@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Takanawa
   text: Resilient range downloads for Rust, JavaScript, and native SDKs.
-  tagline: Ship resumable downloads across desktop, Android, Apple, Node, Electron, and Capacitor from one Rust core.
+  tagline: Ship resumable downloads across desktop, Android, Apple, Node, Electron, Tauri, and Capacitor from one Rust core.
   actions:
     - theme: brand
       text: Get Started

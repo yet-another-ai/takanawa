@@ -18,8 +18,10 @@ platform SDKs are distributed through npm, Maven Central, and SwiftPM artifacts.
 
 - `takanawa-node`: Node.js and Electron bindings built on Node-API.
 - `takanawa-capacitor`: Capacitor v8 plugin for Android and iOS apps.
+- `takanawa-tauri`: Tauri v2 frontend package for desktop apps, paired with the
+  `tauri-plugin-takanawa` Rust crate.
 
-`takanawa-node` and `takanawa-capacitor` are built from the same internal
+`takanawa-node`, `takanawa-capacitor`, and `takanawa-tauri` are built from the same internal
 TypeScript facade, so their public option names, listener handles, hash forms,
 phase strings, and snapshot fields stay aligned. That shared facade is bundled
 into each target package and is not published as a standalone npm package.
@@ -50,7 +52,7 @@ Android consumers use the Kotlin-first SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.4.4")
+    implementation("ai.yetanother:takanawa-android:{{ takanawaVersion }}")
 }
 
 val download = TakanawaDownload.create(config)

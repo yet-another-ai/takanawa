@@ -9,8 +9,8 @@ Add the crates you need to `Cargo.toml`:
 
 ```toml
 [dependencies]
-takanawa-core = "0.4.0"
-takanawa-http = "0.4.0"
+takanawa-core = "{{ takanawaVersion }}"
+takanawa-http = "{{ takanawaVersion }}"
 ```
 
 For workspace development, depend on local paths instead:

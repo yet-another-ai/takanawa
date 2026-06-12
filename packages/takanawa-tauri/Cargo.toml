@@ -1,0 +1,36 @@
+[package]
+name = "tauri-plugin-takanawa"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tauri v2 plugin for Takanawa range downloads"
+readme = "README.md"
+keywords = ["download", "tauri", "range", "resume"]
+categories = ["api-bindings", "network-programming"]
+links = "tauri-plugin-takanawa"
+include = [
+    "Cargo.toml",
+    "build.rs",
+    "README.md",
+    "permissions/**/*",
+    "src/**/*.rs",
+]
+
+[lib]
+name = "takanawa_tauri"
+
+[dependencies]
+base64.workspace = true
+serde.workspace = true
+takanawa-core.workspace = true
+takanawa-http = { workspace = true, features = ["tls-rustls"] }
+tauri.workspace = true
+tokio.workspace = true
+
+[build-dependencies]
+tauri-plugin.workspace = true
+
+[lints]
+workspace = true

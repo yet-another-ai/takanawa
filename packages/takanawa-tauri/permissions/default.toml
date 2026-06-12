@@ -1,0 +1,14 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Allows Takanawa download task commands from the Tauri frontend."
+permissions = [
+    "allow-create",
+    "allow-start",
+    "allow-pause",
+    "allow-cancel",
+    "allow-snapshot",
+    "allow-bitmap",
+    "allow-close",
+    "allow-download-to-completion",
+]

@@ -1,6 +1,6 @@
 {
   "name": "takanawa",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "private": true,
   "packageManager": "pnpm@11.5.2",
   "type": "module",
@@ -10,7 +10,8 @@
     "docs:preview": "vitepress preview docs",
     "build:js-core": "pnpm --filter takanawa-js-core build",
     "build:node": "pnpm --filter takanawa-node build",
-    "build:capacitor": "pnpm --filter takanawa-capacitor build"
+    "build:capacitor": "pnpm --filter takanawa-capacitor build",
+    "build:tauri": "pnpm --filter takanawa-tauri build"
   },
   "devDependencies": {
     "vitepress": "^1.6.4"

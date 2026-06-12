@@ -25,7 +25,7 @@ perl -0pi -e "s/(takanawa-http = \\{ version = \")[^\"]+(\", path = \"crates\\/t
 perl -0pi -e "s/(project\\(Takanawa VERSION )[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${version}/" CMakeLists.txt
 perl -0pi -e "s/(\"version\": \")[^\"]+(\")/\${1}${version}\${2}/" ports/takanawa/vcpkg.json
 
-npm_package_manifests=(packages/*/package.json)
+npm_package_manifests=(package.json packages/*/package.json)
 for file in "${npm_package_manifests[@]}"; do
   [[ -e "$file" ]] || continue
   perl -0pi -e "s/(^\\s*\"version\": \")[^\"]+(\")/\${1}${version}\${2}/m" "$file"
@@ -39,22 +39,7 @@ if [[ -f packages/takanawa-capacitor/ios/Package.swift ]]; then
   perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/" packages/takanawa-capacitor/ios/Package.swift
 fi
 
-android_version_reference_files=(
-  README.md
-  docs/api/index.md
-  docs/guide/android.md
-)
-
-for file in "${android_version_reference_files[@]}"; do
-  perl -0pi -e "s/(implementation\\(\"ai\\.yetanother:takanawa-android:)[^\"]+(\"\\))/\${1}${version}\${2}/g" "$file"
-done
-
-apple_version_reference_files=(
-  docs/guide/apple.md
-)
-
-for file in "${apple_version_reference_files[@]}"; do
-  perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/g" "$file"
-done
+perl -0pi -e "s/(implementation\\(\"ai\\.yetanother:takanawa-android:)[^\"]+(\"\\))/\${1}${version}\${2}/g" README.md
+perl -0pi -e "s/(takanawa-tauri = \\{ package = \"tauri-plugin-takanawa\", version = \")[^\"]+(\")/\${1}${version}\${2}/g" packages/takanawa-tauri/README.md
 
 echo "Synced release version references to $version"

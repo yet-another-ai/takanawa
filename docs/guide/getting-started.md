@@ -10,6 +10,7 @@ Start from the target you are integrating:
 - [Node and Electron](./node): install the Node-API npm package.
 - [Capacitor](./capacitor): install the Capacitor v8 npm plugin for Android and
   iOS apps.
+- [Tauri](./tauri): install the Tauri v2 npm package and Rust plugin crate.
 - [Android](./android): install the Kotlin-first AAR from Maven Central.
 - [Apple and SwiftPM](./apple): install the SwiftPM package backed by the
   prebuilt XCFramework.

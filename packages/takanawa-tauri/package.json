@@ -1,0 +1,60 @@
+{
+  "name": "takanawa-tauri",
+  "version": "0.5.0",
+  "description": "Tauri v2 bindings for Takanawa downloads.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yetanother.ai/takanawa.git",
+    "directory": "packages/takanawa-tauri"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.mjs",
+      "require": "./dist/testing.cjs"
+    }
+  },
+  "files": [
+    "README.md",
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "dist/index.d.ts",
+    "dist/index.mjs",
+    "dist/index.mjs.map",
+    "dist/testing.cjs",
+    "dist/testing.cjs.map",
+    "dist/testing.d.ts",
+    "dist/testing.mjs",
+    "dist/testing.mjs.map",
+    "Cargo.toml",
+    "build.rs",
+    "permissions",
+    "src/**/*.rs"
+  ],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"const fs = require('node:fs'); fs.copyFileSync('dist/takanawa-tauri/src/index.d.ts', 'dist/index.d.ts'); fs.copyFileSync('dist/takanawa-tauri/src/testing.d.ts', 'dist/testing.d.ts')\"",
+    "test": "pnpm run build && node --test __test__/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@tauri-apps/api": ">=2 <3"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

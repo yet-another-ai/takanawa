@@ -19,6 +19,9 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           experimental: true
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: Swatinem/rust-cache@v2
       - run: mise run fmt
       - run: mise run clippy
