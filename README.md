@@ -18,6 +18,10 @@ downloads can resume automatically.
 - `packages/takanawa-capacitor`: Capacitor plugin published to npm. The plugin
   ships Android and iOS bridge source and depends on the Android AAR and SwiftPM
   package at the same Takanawa version.
+- `packages/takanawa-tauri`: Tauri v2 plugin published as the `takanawa-tauri`
+  npm package and the `tauri-plugin-takanawa` Rust crate. The frontend package
+  uses the shared TypeScript API while the Rust plugin compiles into the host
+  Tauri app.
 
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform certificate roots are reserved for a future feature flag.
@@ -38,11 +42,12 @@ mise run version:sync
 ## npm
 
 The `npm` GitHub Actions workflow publishes all non-private packages under
-`packages/*` when a `v*` tag is pushed. This includes `takanawa-node` and
-`takanawa-capacitor`. The private `takanawa-js-core` package is bundled into
-those target packages at build time and is not published separately. The
-workflow builds each package before `npm publish` so generated `dist` files and
-native Node artifacts are included in the packed tarball.
+`packages/*` when a `v*` tag is pushed. This includes `takanawa-node`,
+`takanawa-capacitor`, and `takanawa-tauri`. The private `takanawa-js-core`
+package is bundled into those target packages at build time and is not published
+separately. The workflow builds each package before `npm publish` so generated
+`dist` files and package-specific native artifacts are included in the packed
+tarball.
 
 ## Android
 
@@ -50,7 +55,7 @@ The Android SDK is published as:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.4.4")
+    implementation("ai.yetanother:takanawa-android:0.5.0")
 }
 ```
 

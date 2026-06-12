@@ -1,6 +1,6 @@
 {
   "name": "takanawa",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "Rust range-download library exposed through a stable C ABI",
   "homepage": "https://github.com/yet-another-ai/takanawa",
   "license": "MIT",

@@ -12,7 +12,7 @@ rust = { version = "latest", components = "rustfmt,clippy" }
 [tasks.check]
 description = "Check the full Rust workspace with all features enabled"
 run = "bash -lc 'set -euo pipefail; cargo check --workspace --all-features --locked; mkdir -p target/debug; touch target/debug/.cargo-check-stamp'"
-sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
+sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml"]
 outputs = ["target/debug/.cargo-check-stamp"]
 
 [tasks."rust:components"]
@@ -22,25 +22,25 @@ run = "rustup component add rustfmt clippy"
 [tasks."version:sync"]
 description = "Sync release-version references from Cargo.toml"
 run = "bash scripts/sync-version.sh"
-sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "packages/*/package.json", "scripts/sync-version.sh"]
+sources = ["Cargo.toml", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "packages/*/package.json", "packages/*/README.md", "scripts/sync-version.sh"]
 
 [tasks.test]
 description = "Run all workspace tests with all features enabled"
 depends = ["check"]
 run = "cargo test --workspace --all-features --locked"
-sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
+sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml"]
 
 [tasks.fmt]
 description = "Check Rust formatting"
 depends = ["rust:components"]
 run = "cargo fmt --all -- --check"
-sources = ["crates/**/*.rs"]
+sources = ["crates/**/*.rs", "packages/**/*.rs"]
 
 [tasks.clippy]
 description = "Run clippy across the full workspace"
 depends = ["rust:components"]
 run = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::must_use_candidate"
-sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
+sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml"]
 
 [tasks."docs:dev"]
 description = "Start the VitePress documentation dev server"
@@ -66,7 +66,7 @@ sources = ["CMakeLists.txt", "cmake/**/*.cmake.in", "fixtures/cmake-integration/
 description = "Build all workspace crates for the current desktop host"
 depends = ["header"]
 run = "cargo build --workspace --all-features --release --locked"
-sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "include/takanawa.h"]
+sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml", "include/takanawa.h"]
 
 [tasks.header]
 description = "Generate the public C header with cbindgen"

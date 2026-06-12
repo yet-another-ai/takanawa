@@ -10,7 +10,8 @@
     "docs:preview": "vitepress preview docs",
     "build:js-core": "pnpm --filter takanawa-js-core build",
     "build:node": "pnpm --filter takanawa-node build",
-    "build:capacitor": "pnpm --filter takanawa-capacitor build"
+    "build:capacitor": "pnpm --filter takanawa-capacitor build",
+    "build:tauri": "pnpm --filter takanawa-tauri build"
   },
   "devDependencies": {
     "vitepress": "^1.6.4"

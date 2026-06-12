@@ -57,6 +57,21 @@ importers:
         specifier: ^7.2.7
         version: 7.3.5(@types/node@24.13.1)
 
+  packages/takanawa-tauri:
+    devDependencies:
+      '@tauri-apps/api':
+        specifier: ^2.10.1
+        version: 2.11.0
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.5(@types/node@24.13.1)
+
 packages:
 
   '@algolia/abtesting@1.19.0':
@@ -1195,6 +1210,9 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
+
+  '@tauri-apps/api@2.11.0':
+    resolution: {integrity: sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==}
 
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
@@ -2631,6 +2649,8 @@ snapshots:
       '@types/hast': 3.0.4
 
   '@shikijs/vscode-textmate@10.0.2': {}
+
+  '@tauri-apps/api@2.11.0': {}
 
   '@tybys/wasm-util@0.10.2':
     dependencies:

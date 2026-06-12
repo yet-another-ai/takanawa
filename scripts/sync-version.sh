@@ -22,6 +22,7 @@ fi
 
 perl -0pi -e "s/(takanawa-core = \\{ version = \")[^\"]+(\", path = \"crates\\/takanawa-core\" \\})/\${1}${version}\${2}/" Cargo.toml
 perl -0pi -e "s/(takanawa-http = \\{ version = \")[^\"]+(\", path = \"crates\\/takanawa-http\")/\${1}${version}\${2}/" Cargo.toml
+perl -0pi -e "s/(takanawa-tauri = \\{ version = \")[^\"]+(\", path = \"packages\\/takanawa-tauri\" \\})/\${1}${version}\${2}/" Cargo.toml
 perl -0pi -e "s/(project\\(Takanawa VERSION )[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${version}/" CMakeLists.txt
 perl -0pi -e "s/(\"version\": \")[^\"]+(\")/\${1}${version}\${2}/" ports/takanawa/vcpkg.json
 
@@ -55,6 +56,15 @@ apple_version_reference_files=(
 
 for file in "${apple_version_reference_files[@]}"; do
   perl -0pi -e "s/(github\\.com\\/yetanother\\.ai\\/takanawa\\.git\", exact: \")[^\"]+(\")/\${1}${version}\${2}/g" "$file"
+done
+
+tauri_version_reference_files=(
+  docs/guide/tauri.md
+  packages/takanawa-tauri/README.md
+)
+
+for file in "${tauri_version_reference_files[@]}"; do
+  perl -0pi -e "s/(takanawa-tauri = \\{ package = \"tauri-plugin-takanawa\", version = \")[^\"]+(\")/\${1}${version}\${2}/g" "$file"
 done
 
 echo "Synced release version references to $version"
