@@ -2,7 +2,7 @@
 lockfile = true
 
 [tools]
-java = "temurin-17"
+java = "temurin-21"
 node = "lts"
 pnpm = "latest"
 rust = { version = "latest", components = "rustfmt,clippy" }
