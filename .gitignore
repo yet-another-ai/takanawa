@@ -5,6 +5,7 @@
 node_modules/
 .pnpm-store/
 packages/*/dist/
+packages/takanawa-capacitor/Package.resolved
 packages/takanawa-capacitor/ios/Package.resolved
 packages/takanawa-node/index.d.ts
 packages/takanawa-node/index.js

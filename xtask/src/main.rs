@@ -27,6 +27,7 @@ fn run_main() -> Result<()> {
         "build-apple-xcframework" => build_apple_xcframework(),
         "build-windows-ffi" => build_windows_ffi(),
         "cargo-check" => cargo_check(),
+        "check-apple" => check_apple(),
         "dist-android" => dist_android(),
         "dist-apple-swiftpm" => dist_apple_swiftpm(),
         "dist-linux" => dist_linux(),
@@ -62,6 +63,7 @@ fn print_usage() {
          build-apple-xcframework\n  \
          build-windows-ffi\n  \
          cargo-check\n  \
+         check-apple\n  \
          dist-android\n  \
          dist-apple-swiftpm\n  \
          dist-linux\n  \
@@ -817,6 +819,11 @@ fn test_swift_integration() -> Result<()> {
             .arg(&package_dir)
             .arg("TakanawaSmoke"),
     )
+}
+
+fn check_apple() -> Result<()> {
+    test_capacitor_ios()?;
+    test_swift_integration()
 }
 
 fn swiftpm_release_manifest(version_arg: Option<String>) -> Result<()> {

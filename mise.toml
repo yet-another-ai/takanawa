@@ -206,7 +206,9 @@ sources = ["xtask/**/*.rs", "fixtures/swift-integration/**/*.swift", "fixtures/s
 
 [tasks."check:apple"]
 description = "Build Apple artifacts and run Capacitor iOS plus SwiftPM smoke tests"
-depends = ["test:capacitor-ios", "test:swift-integration"]
+depends = ["package:swiftpm"]
+run = "cargo run -p xtask -- check-apple"
+sources = ["xtask/**/*.rs", "packages/takanawa-capacitor/ios/**/*.swift", "packages/takanawa-capacitor/Package.swift", "fixtures/swift-integration/**/*.swift", "fixtures/swift-integration/Package.swift", "target/apple/Takanawa.xcframework", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
 [tasks."swiftpm:release-manifest"]
 description = "Generate the SwiftPM release manifest with the packaged artifact checksum"
