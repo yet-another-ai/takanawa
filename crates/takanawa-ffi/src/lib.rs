@@ -1,5 +1,4 @@
 #![allow(unsafe_code)]
-#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::ffi::CStr;
@@ -17,91 +16,154 @@ use takanawa_http::{
 };
 use tokio::runtime::{Builder, Runtime};
 
+/// ABI version expected by all C-facing configuration structs.
 pub const TKNW_ABI_VERSION: u32 = 1;
 
+/// Status codes returned by the C ABI.
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TknwStatus {
+    /// Operation completed successfully.
     Ok = 0,
+    /// Caller-provided output buffer was too small.
     BufferTooSmall = 1,
+    /// A required pointer argument was null.
     NullPointer = -1,
+    /// ABI version or struct size did not match this library.
     AbiMismatch = -2,
+    /// Configuration was invalid.
     InvalidConfig = -3,
+    /// The global runtime has not been initialized.
     RuntimeNotInitialized = -4,
+    /// The final target file already exists.
     TargetExists = -10,
+    /// The part file is locked by another process or handle.
     PartBusy = -11,
+    /// Existing part-file size did not match expected metadata.
     PartSizeMismatch = -12,
+    /// Stored part metadata is corrupt.
     PartCorrupt = -13,
+    /// Remote validators or size changed while resuming.
     RemoteChanged = -14,
+    /// HTTP response did not satisfy range download requirements.
     HttpProtocol = -20,
+    /// Network transport failed.
     Network = -21,
+    /// Filesystem I/O failed.
     Io = -30,
+    /// Downloaded bytes did not match the configured hash.
     HashMismatch = -40,
+    /// Download was cancelled.
     Cancelled = -50,
+    /// Download was already running.
     AlreadyStarted = -51,
+    /// A panic was caught at the FFI boundary.
     Panic = -100,
+    /// Internal task or FFI boundary failure.
     Internal = -101,
 }
 
+/// Hash algorithm identifiers used by the C ABI.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TknwHashKind {
+    /// No hash verification.
     None = 0,
+    /// SHA-256 verification.
     Sha256 = 1,
+    /// SHA-1 verification.
     Sha1 = 2,
+    /// SHA-512 verification.
     Sha512 = 3,
+    /// MD5 verification.
     Md5 = 4,
+    /// CRC-32 verification.
     Crc32 = 5,
 }
 
+/// Global runtime configuration for [`tknw_global_init`].
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct TknwGlobalConfig {
+    /// Must be [`TKNW_ABI_VERSION`].
     pub abi_version: u32,
+    /// Must be at least `size_of::<TknwGlobalConfig>()`.
     pub struct_size: usize,
+    /// Maximum in-flight I/O operations. `0` selects the default.
     pub max_io: usize,
 }
 
+/// Download creation configuration for [`tknw_download_create`].
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct TknwDownloadConfig {
+    /// Must be [`TKNW_ABI_VERSION`].
     pub abi_version: u32,
+    /// Must be at least `size_of::<TknwDownloadConfig>()`.
     pub struct_size: usize,
+    /// Null-terminated source URL string.
     pub url: *const c_char,
+    /// Null-terminated final target path string.
     pub target_path: *const c_char,
+    /// Requested chunk size in bytes. `0` selects the default.
     pub chunk_size: u64,
+    /// Requested chunk parallelism. `0` lets the engine choose a default.
     pub parallelism: usize,
+    /// Maximum chunks to download at the same time. `0` falls back to `parallelism`.
     pub max_parallel_chunks: usize,
+    /// Number of retries after the first attempt.
     pub max_retries: u32,
+    /// Initial retry backoff in milliseconds. `0` selects the default.
     pub backoff_initial_millis: u64,
+    /// Maximum retry backoff in milliseconds. `0` selects the default.
     pub backoff_max_millis: u64,
+    /// Connection timeout in milliseconds. `0` selects the default.
     pub connect_timeout_millis: u64,
+    /// Per-read timeout in milliseconds. `0` disables this timeout.
     pub read_timeout_millis: u64,
+    /// Total timeout per probe/chunk attempt in milliseconds. `0` disables this timeout.
     pub total_timeout_millis: u64,
+    /// Aggregate response-body bandwidth limit in bytes per second. `0` disables limiting.
     pub bytes_per_second_limit: u64,
+    /// Hash algorithm identifier from [`TknwHashKind`].
     pub hash_kind: u32,
+    /// Pointer to expected hash bytes for the configured hash algorithm.
     pub expected_sha256: *const c_uchar,
+    /// Length of `expected_sha256` in bytes.
     pub expected_sha256_len: usize,
 }
 
+/// Progress snapshot written by the C ABI.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct TknwDownloadSnapshot {
+    /// Always [`TKNW_ABI_VERSION`] on output and required on input.
     pub abi_version: u32,
+    /// Must be at least `size_of::<TknwDownloadSnapshot>()` on input.
     pub struct_size: usize,
+    /// Current phase as a `DownloadPhase` numeric value.
     pub phase: u32,
+    /// Total content length in bytes.
     pub content_len: u64,
+    /// Number of bytes represented by committed chunks.
     pub downloaded_bytes: u64,
+    /// Chunk size in bytes.
     pub chunk_size: u64,
+    /// Total chunk count.
     pub chunk_count: u64,
+    /// Number of chunks committed complete.
     pub completed_chunks: u64,
+    /// Current number of active I/O operations.
     pub active_io: usize,
 }
 
+/// C callback invoked when download progress changes.
 pub type TknwProgressCallback =
     Option<extern "C" fn(snapshot: *const TknwDownloadSnapshot, context: *mut c_void)>;
+/// C callback invoked when a progress callback context is released.
 pub type TknwProgressCallbackRelease = Option<extern "C" fn(context: *mut c_void)>;
 
+/// Opaque download handle owned by the C ABI caller.
 pub struct TknwDownload {
     global: Arc<GlobalRuntime>,
     inner: DownloadHandle,
@@ -134,6 +196,13 @@ struct GlobalRuntime {
 
 static GLOBAL: LazyLock<Mutex<Option<Arc<GlobalRuntime>>>> = LazyLock::new(|| Mutex::new(None));
 
+/// Initializes or updates the global runtime used by C ABI downloads.
+///
+/// Pass a null `config` pointer to use defaults.
+///
+/// # Panics
+///
+/// Panics if the global runtime mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_global_init(config: *const TknwGlobalConfig) -> TknwStatus {
     ffi_boundary(|| {
@@ -165,6 +234,11 @@ pub extern "C" fn tknw_global_init(config: *const TknwGlobalConfig) -> TknwStatu
     })
 }
 
+/// Shuts down the global runtime and drops shared engine state.
+///
+/// # Panics
+///
+/// Panics if the global runtime mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_global_shutdown() -> TknwStatus {
     ffi_boundary(|| {
@@ -174,6 +248,11 @@ pub extern "C" fn tknw_global_shutdown() -> TknwStatus {
     })
 }
 
+/// Updates the global maximum number of in-flight I/O operations.
+///
+/// # Panics
+///
+/// Panics if the global runtime mutex or shared limiter mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_global_set_max_io(max_io: usize) -> TknwStatus {
     ffi_boundary(|| {
@@ -183,6 +262,14 @@ pub extern "C" fn tknw_global_set_max_io(max_io: usize) -> TknwStatus {
     })
 }
 
+/// Creates a download handle.
+///
+/// On success, writes a non-null handle to `out_download`. Release it with
+/// [`tknw_download_release`].
+///
+/// # Panics
+///
+/// Panics if the global runtime mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_create(
     config: *const TknwDownloadConfig,
@@ -242,6 +329,11 @@ pub extern "C" fn tknw_download_create(
     })
 }
 
+/// Starts or resumes a download.
+///
+/// # Panics
+///
+/// Panics if the handle's join-handle mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_start(download: *mut TknwDownload) -> TknwStatus {
     ffi_download_boundary(download, |download| {
@@ -250,6 +342,7 @@ pub extern "C" fn tknw_download_start(download: *mut TknwDownload) -> TknwStatus
     })
 }
 
+/// Requests that a download pause after in-flight work winds down.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_pause(download: *mut TknwDownload) -> TknwStatus {
     ffi_download_boundary(download, |download| {
@@ -258,6 +351,11 @@ pub extern "C" fn tknw_download_pause(download: *mut TknwDownload) -> TknwStatus
     })
 }
 
+/// Requests cancellation of a download.
+///
+/// # Panics
+///
+/// Panics if the handle's join-handle mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_cancel(download: *mut TknwDownload) -> TknwStatus {
     ffi_download_boundary(download, |download| {
@@ -266,6 +364,13 @@ pub extern "C" fn tknw_download_cancel(download: *mut TknwDownload) -> TknwStatu
     })
 }
 
+/// Writes the current download snapshot to `snapshot`.
+///
+/// `snapshot` must point to writable memory initialized with ABI metadata.
+///
+/// # Panics
+///
+/// Panics if shared progress state is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_snapshot(
     download: *const TknwDownload,
@@ -296,6 +401,14 @@ pub extern "C" fn tknw_download_snapshot(
     })
 }
 
+/// Installs or removes a progress callback for a download.
+///
+/// Passing `None` as `callback` removes the callback. A non-null `context` or
+/// release callback requires a non-null progress callback.
+///
+/// # Panics
+///
+/// Panics if the last-error mutex or callback mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_set_progress_callback(
     download: *mut TknwDownload,
@@ -339,6 +452,14 @@ pub extern "C" fn tknw_download_set_progress_callback(
     })
 }
 
+/// Copies the serialized completion bitmap into `buffer`.
+///
+/// Always writes the required byte count to `written`. If `buffer_len` is too
+/// small, returns [`TknwStatus::BufferTooSmall`] without copying bytes.
+///
+/// # Panics
+///
+/// Panics if shared progress state is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_copy_bitmap(
     download: *const TknwDownload,
@@ -376,6 +497,15 @@ pub extern "C" fn tknw_download_copy_bitmap(
     })
 }
 
+/// Copies the most recent download error message into `buffer` as a C string.
+///
+/// Always writes the required byte count, including the null terminator, to
+/// `written`. If `buffer_len` is too small, returns
+/// [`TknwStatus::BufferTooSmall`] without copying bytes.
+///
+/// # Panics
+///
+/// Panics if shared progress state or the last-error mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_last_error(
     download: *const TknwDownload,
@@ -425,6 +555,7 @@ pub extern "C" fn tknw_download_last_error(
     })
 }
 
+/// Releases a download handle and sets the caller's handle pointer to null.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_release(download: *mut *mut TknwDownload) -> TknwStatus {
     ffi_boundary(|| {

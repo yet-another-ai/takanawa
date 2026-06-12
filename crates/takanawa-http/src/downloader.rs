@@ -30,21 +30,32 @@ const DEFAULT_BACKOFF_MAX: Duration = Duration::from_secs(3);
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const WRITE_QUEUE_DEPTH_PER_CHUNK: usize = 8;
 
+/// Configuration for a resumable HTTP range download.
 #[derive(Debug, Clone)]
 pub struct DownloadConfig {
+    /// Source URL to download.
     pub url: String,
+    /// Final output path.
     pub target_path: PathBuf,
+    /// Requested chunk size in bytes. `0` selects the default chunk size.
     pub chunk_size: u64,
+    /// Requested chunk parallelism. `0` lets the engine choose a default.
     pub parallelism: usize,
+    /// Maximum chunks to download at the same time. `0` falls back to `parallelism`.
     pub max_parallel_chunks: usize,
+    /// Retry policy for probe and chunk requests.
     pub retry: RetryConfig,
+    /// Request timeout policy.
     pub timeout: TimeoutConfig,
+    /// Aggregate response-body bandwidth limit in bytes per second. `0` disables limiting.
     pub bytes_per_second_limit: u64,
+    /// Optional final-file hash verification.
     pub hash: HashConfig,
 }
 
 impl DownloadConfig {
     #[must_use]
+    /// Returns a copy with zero-valued defaults filled in.
     pub fn normalized(mut self) -> Self {
         if self.chunk_size == 0 {
             self.chunk_size = DEFAULT_CHUNK_SIZE;
@@ -55,10 +66,14 @@ impl DownloadConfig {
     }
 }
 
+/// Retry configuration for remote probe and chunk requests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RetryConfig {
+    /// Number of retries after the initial attempt.
     pub max_retries: u32,
+    /// Initial exponential-backoff delay. `0` selects the default.
     pub backoff_initial: Duration,
+    /// Maximum exponential-backoff delay. `0` selects the default.
     pub backoff_max: Duration,
 }
 
@@ -74,6 +89,7 @@ impl Default for RetryConfig {
 
 impl RetryConfig {
     #[must_use]
+    /// Returns a retry config with zero-valued backoff durations filled in.
     pub fn normalized(self) -> Self {
         let default = Self::default();
         let backoff_initial = if self.backoff_initial.is_zero() {
@@ -98,15 +114,20 @@ impl RetryConfig {
     }
 }
 
+/// Timeout configuration for HTTP requests.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TimeoutConfig {
+    /// Connection timeout. `0` selects the default.
     pub connect: Duration,
+    /// Per-read timeout. `0` disables this timeout.
     pub read: Duration,
+    /// Total timeout for each probe or chunk attempt. `0` disables this timeout.
     pub total: Duration,
 }
 
 impl TimeoutConfig {
     #[must_use]
+    /// Returns a timeout config with zero-valued defaults filled in.
     pub fn normalized(self) -> Self {
         Self {
             connect: if self.connect.is_zero() {
@@ -120,6 +141,7 @@ impl TimeoutConfig {
     }
 }
 
+/// Cloneable HTTP download engine shared by download handles.
 #[derive(Debug, Clone)]
 pub struct DownloadEngine {
     client: Client,
@@ -127,6 +149,11 @@ pub struct DownloadEngine {
 }
 
 impl DownloadEngine {
+    /// Creates a download engine with the given maximum in-flight I/O count.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be constructed.
     pub fn new(max_io: usize) -> Result<Self> {
         let client = build_client(TimeoutConfig::default().normalized())?;
         Ok(Self {
@@ -136,10 +163,22 @@ impl DownloadEngine {
     }
 
     #[must_use]
+    /// Returns the engine-wide maximum number of in-flight I/O operations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared limiter mutex is poisoned.
     pub fn max_io(&self) -> usize {
         self.limiter.max()
     }
 
+    /// Updates the engine-wide maximum number of in-flight I/O operations.
+    ///
+    /// A `max_io` value of `0` is normalized to `1`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared limiter mutex is poisoned.
     pub fn set_max_io(&self, max_io: usize) {
         self.limiter.set_max(max_io);
     }
@@ -184,6 +223,7 @@ fn build_client(timeout: TimeoutConfig) -> Result<Client> {
         .map_err(|err| TakanawaError::InvalidConfig(format!("failed to build HTTP client: {err}")))
 }
 
+/// Stateful download handle that can be started, paused, cancelled, and observed.
 #[derive(Debug)]
 pub struct DownloadHandle {
     engine: DownloadEngine,
@@ -201,6 +241,7 @@ struct Control {
 
 impl DownloadHandle {
     #[must_use]
+    /// Creates a download handle from an engine and config.
     pub fn new(engine: DownloadEngine, config: DownloadConfig) -> Self {
         Self {
             engine,
@@ -211,6 +252,17 @@ impl DownloadHandle {
         }
     }
 
+    /// Starts or resumes the download on an existing Tokio runtime.
+    ///
+    /// The work runs in a background task owned by this handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a previous start is still running.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the join-handle mutex is poisoned.
     pub fn start_on(&self, runtime: &Runtime) -> Result<()> {
         let mut join = self.join.lock().expect("download join mutex poisoned");
         if join.as_ref().is_some_and(|handle| !handle.is_finished()) {
@@ -243,12 +295,28 @@ impl DownloadHandle {
         Ok(())
     }
 
+    /// Requests the download to pause after current in-flight work winds down.
+    ///
+    /// # Errors
+    ///
+    /// This method currently does not fail, but returns `Result` for API
+    /// symmetry with other control operations.
     pub fn pause(&self) -> Result<()> {
         self.control.pause.store(true, Ordering::Relaxed);
         self.state.request_pause();
         Ok(())
     }
 
+    /// Requests cancellation of the download.
+    ///
+    /// # Errors
+    ///
+    /// This method currently does not fail, but returns `Result` for API
+    /// symmetry with other control operations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the join-handle mutex is poisoned.
     pub fn cancel(&self) -> Result<()> {
         self.control.cancel.store(true, Ordering::Relaxed);
         self.state.request_cancel();
@@ -264,16 +332,27 @@ impl DownloadHandle {
         Ok(())
     }
 
+    /// Installs or removes a progress callback.
     pub fn set_progress_callback(&self, callback: Option<ProgressCallback>) {
         self.state.set_progress_callback(callback);
     }
 
     #[must_use]
+    /// Returns the latest progress snapshot.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared progress mutex is poisoned.
     pub fn snapshot(&self) -> DownloadSnapshot {
         self.state.snapshot()
     }
 
     #[must_use]
+    /// Returns the current serialized completion bitmap.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared progress mutex is poisoned.
     pub fn bitmap(&self) -> Vec<u8> {
         self.state.bitmap()
     }
@@ -293,6 +372,18 @@ impl Drop for DownloadHandle {
     }
 }
 
+/// Downloads a resource to completion and returns its final progress snapshot.
+///
+/// # Errors
+///
+/// Returns an error if probing the remote resource, validating HTTP range
+/// responses, writing/resuming the part file, finalizing the target, or hash
+/// verification fails.
+///
+/// # Panics
+///
+/// Panics if shared progress state is poisoned while creating the final
+/// snapshot.
 pub async fn download_to_completion(
     engine: DownloadEngine,
     config: DownloadConfig,

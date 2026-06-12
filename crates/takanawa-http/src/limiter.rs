@@ -2,8 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::Notify;
 
+/// Default maximum number of simultaneous HTTP/file I/O operations.
 pub const DEFAULT_MAX_IO: usize = 16;
 
+/// Async limiter for coordinating in-flight HTTP and file I/O.
 #[derive(Debug, Clone)]
 pub struct IoLimiter {
     inner: Arc<Inner>,
@@ -21,6 +23,9 @@ struct State {
     in_flight: usize,
 }
 
+/// Permit returned by [`IoLimiter::acquire`].
+///
+/// Dropping the permit releases one in-flight slot.
 #[derive(Debug)]
 pub struct IoPermit {
     inner: Arc<Inner>,
@@ -28,6 +33,9 @@ pub struct IoPermit {
 
 impl IoLimiter {
     #[must_use]
+    /// Creates an I/O limiter.
+    ///
+    /// A `max` value of `0` is normalized to `1`.
     pub fn new(max: usize) -> Self {
         let max = max.max(1);
         Self {
@@ -38,6 +46,11 @@ impl IoLimiter {
         }
     }
 
+    /// Waits until an I/O slot is available and returns a permit.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the limiter mutex is poisoned.
     pub async fn acquire(&self) -> IoPermit {
         loop {
             let notified = {
@@ -54,6 +67,13 @@ impl IoLimiter {
         }
     }
 
+    /// Updates the maximum number of in-flight I/O operations.
+    ///
+    /// A `max` value of `0` is normalized to `1`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the limiter mutex is poisoned.
     pub fn set_max(&self, max: usize) {
         let mut state = self.inner.state.lock().expect("I/O limiter mutex poisoned");
         state.max = max.max(1);
@@ -62,6 +82,11 @@ impl IoLimiter {
     }
 
     #[must_use]
+    /// Returns the configured maximum number of in-flight I/O operations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the limiter mutex is poisoned.
     pub fn max(&self) -> usize {
         self.inner
             .state
@@ -71,6 +96,11 @@ impl IoLimiter {
     }
 
     #[must_use]
+    /// Returns the current number of in-flight I/O operations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the limiter mutex is poisoned.
     pub fn in_flight(&self) -> usize {
         self.inner
             .state

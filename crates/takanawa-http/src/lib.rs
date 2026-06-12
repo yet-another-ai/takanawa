@@ -1,4 +1,4 @@
-#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+//! HTTP range download engine built on the Takanawa core part-file primitives.
 
 mod content_range;
 mod downloader;
