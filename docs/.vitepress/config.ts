@@ -50,7 +50,7 @@ export default defineConfig({
       provider: 'local',
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/yetanother.ai/takanawa' },
+      { icon: 'github', link: 'https://github.com/yet-another-ai/takanawa' },
     ],
     footer: {
       message: 'Released under the MIT License.',
