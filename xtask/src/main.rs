@@ -1079,7 +1079,7 @@ fn sync_version() -> Result<()> {
         if repo_root().join(package_swift).is_file() {
             replace_between_all_in_file(
                 package_swift,
-                "github.com/yetanother.ai/takanawa.git\", exact: \"",
+                "takanawa.git\", exact: \"",
                 "\"",
                 &version,
             )?;
@@ -1227,6 +1227,7 @@ fn replace_between_all_in_file(
     }
     let mut content = fs::read_to_string(&path)?;
     let mut search_from = 0;
+    let mut replaced = false;
     while let Some(start) = content[search_from..].find(start_marker) {
         let value_start = search_from + start + start_marker.len();
         let Some(end) = content[value_start..].find(end_marker) else {
@@ -1234,7 +1235,15 @@ fn replace_between_all_in_file(
         };
         let value_end = value_start + end;
         content.replace_range(value_start..value_end, value);
+        replaced = true;
         search_from = value_start + value.len() + end_marker.len();
+    }
+    if !replaced {
+        return Err(format!(
+            "missing version marker {start_marker:?} in {}",
+            path.display()
+        )
+        .into());
     }
     fs::write(path, content)?;
     Ok(())
