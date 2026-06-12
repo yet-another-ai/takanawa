@@ -28,6 +28,16 @@ SDK published as an AAR.
 mise run package:android-aar
 ```
 
+## Capacitor
+
+Capacitor users can install the `takanawa-capacitor` package for Android and
+iOS apps. Its TypeScript API mirrors the Node package while delegating work to
+the native Android and Swift SDKs.
+
+```sh
+pnpm --filter takanawa-capacitor build
+```
+
 ## Apple
 
 Apple packages are distributed as a prebuilt `Takanawa.xcframework` for SwiftPM.

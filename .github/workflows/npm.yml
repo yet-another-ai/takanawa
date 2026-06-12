@@ -66,6 +66,20 @@ jobs:
           fi
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
+      - name: Build publishable npm packages
+        if: steps.packages.outputs.has_packages == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r dir; do
+            name="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(manifest.name);' "$dir/package.json")"
+
+            echo "::group::pnpm --filter $name build"
+            pnpm --filter "$name" build
+            echo "::endgroup::"
+          done < target/npm-packages.txt
+
       - name: npm publish dry-run
         if: steps.packages.outputs.has_packages == 'true'
         shell: bash
@@ -132,6 +146,20 @@ jobs:
             echo "has_packages=true" >> "$GITHUB_OUTPUT"
           fi
           echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Build publishable npm packages
+        if: steps.packages.outputs.has_packages == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r dir; do
+            name="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(manifest.name);' "$dir/package.json")"
+
+            echo "::group::pnpm --filter $name build"
+            pnpm --filter "$name" build
+            echo "::endgroup::"
+          done < target/npm-packages.txt
 
       - name: Publish to npm
         if: steps.packages.outputs.has_packages == 'true'

@@ -1,8 +1,14 @@
 /target/
 .gradle/
 **/build/
+**/.build/
 node_modules/
 .pnpm-store/
+packages/*/dist/
+packages/takanawa-capacitor/ios/Package.resolved
+packages/takanawa-node/index.d.ts
+packages/takanawa-node/index.js
+packages/takanawa-node/*.node
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 .DS_Store

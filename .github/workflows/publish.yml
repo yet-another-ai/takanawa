@@ -184,6 +184,7 @@ jobs:
           tar -C target/dist -czf target/dist/takanawa-macos-universal.tar.gz takanawa-macos-universal
 
           mise run package:apple
+          mise run test:capacitor-ios
           mise run test:swift-integration
           mise run swiftpm:release-manifest
           cp target/swiftpm/Takanawa.xcframework.zip target/dist/
