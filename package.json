@@ -1,6 +1,6 @@
 {
   "name": "takanawa",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "packageManager": "pnpm@11.6.0",
   "type": "module",

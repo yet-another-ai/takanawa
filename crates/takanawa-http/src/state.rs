@@ -2,7 +2,8 @@ use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use takanawa_core::PartMetadata;
 
@@ -74,6 +75,10 @@ pub struct DownloadSpeedSnapshot {
 /// Callback invoked when response-body bytes are received.
 pub type SpeedCallback = Arc<dyn Fn(DownloadSpeedSnapshot) + Send + Sync + 'static>;
 
+const CALLBACK_EVENTS_PER_SECOND: u64 = 60;
+const CALLBACK_THROTTLE_INTERVAL: Duration =
+    Duration::from_nanos(1_000_000_000 / CALLBACK_EVENTS_PER_SECOND);
+
 #[derive(Debug, Clone)]
 pub(crate) struct SharedState {
     inner: Arc<Inner>,
@@ -85,6 +90,8 @@ struct Inner {
     active_io: AtomicUsize,
     progress_callback: Mutex<Option<ProgressCallback>>,
     speed_callback: Mutex<Option<SpeedCallback>>,
+    progress_throttle: Mutex<CallbackThrottle>,
+    speed_throttle: Mutex<CallbackThrottle>,
 }
 
 impl fmt::Debug for Inner {
@@ -118,6 +125,28 @@ struct SpeedProgress {
     bytes_per_second: f64,
     started_at: Option<Instant>,
     last_sample_at: Option<Instant>,
+}
+
+#[derive(Debug, Default)]
+struct CallbackThrottle {
+    last_emit_at: Option<Instant>,
+    trailing_scheduled: bool,
+    generation: u64,
+}
+
+impl CallbackThrottle {
+    fn reset(&mut self) {
+        self.last_emit_at = None;
+        self.trailing_scheduled = false;
+        self.generation = self.generation.wrapping_add(1);
+    }
+}
+
+#[derive(Debug)]
+enum CallbackThrottleAction {
+    Emit,
+    Schedule { delay: Duration, generation: u64 },
+    Skip,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -235,6 +264,8 @@ impl SharedState {
                 active_io: AtomicUsize::new(0),
                 progress_callback: Mutex::new(None),
                 speed_callback: Mutex::new(None),
+                progress_throttle: Mutex::new(CallbackThrottle::default()),
+                speed_throttle: Mutex::new(CallbackThrottle::default()),
             }),
         }
     }
@@ -249,6 +280,11 @@ impl SharedState {
                 .expect("download callback mutex poisoned");
             std::mem::replace(&mut *progress_callback, callback)
         };
+        self.inner
+            .progress_throttle
+            .lock()
+            .expect("download progress callback throttle mutex poisoned")
+            .reset();
         drop(previous);
         if should_notify {
             self.notify_progress();
@@ -265,6 +301,11 @@ impl SharedState {
                 .expect("download speed callback mutex poisoned");
             std::mem::replace(&mut *speed_callback, callback)
         };
+        self.inner
+            .speed_throttle
+            .lock()
+            .expect("download speed callback throttle mutex poisoned")
+            .reset();
         drop(previous);
         if should_notify {
             self.notify_speed();
@@ -446,6 +487,151 @@ impl SharedState {
     }
 
     fn notify_progress(&self) {
+        if self
+            .inner
+            .progress_callback
+            .lock()
+            .expect("download callback mutex poisoned")
+            .is_none()
+        {
+            return;
+        }
+        match self.progress_throttle_action(Instant::now()) {
+            CallbackThrottleAction::Emit => self.emit_progress_callback(),
+            CallbackThrottleAction::Schedule { delay, generation } => {
+                self.schedule_progress_callback(delay, generation);
+            }
+            CallbackThrottleAction::Skip => {}
+        }
+    }
+
+    fn notify_speed(&self) {
+        if self
+            .inner
+            .speed_callback
+            .lock()
+            .expect("download speed callback mutex poisoned")
+            .is_none()
+        {
+            return;
+        }
+        match self.speed_throttle_action(Instant::now()) {
+            CallbackThrottleAction::Emit => self.emit_speed_callback(),
+            CallbackThrottleAction::Schedule { delay, generation } => {
+                self.schedule_speed_callback(delay, generation);
+            }
+            CallbackThrottleAction::Skip => {}
+        }
+    }
+
+    fn progress_throttle_action(&self, now: Instant) -> CallbackThrottleAction {
+        let mut throttle = self
+            .inner
+            .progress_throttle
+            .lock()
+            .expect("download progress callback throttle mutex poisoned");
+        Self::throttle_action(&mut throttle, now)
+    }
+
+    fn speed_throttle_action(&self, now: Instant) -> CallbackThrottleAction {
+        let mut throttle = self
+            .inner
+            .speed_throttle
+            .lock()
+            .expect("download speed callback throttle mutex poisoned");
+        Self::throttle_action(&mut throttle, now)
+    }
+
+    fn throttle_action(throttle: &mut CallbackThrottle, now: Instant) -> CallbackThrottleAction {
+        if throttle.trailing_scheduled {
+            return CallbackThrottleAction::Skip;
+        }
+
+        let Some(last_emit_at) = throttle.last_emit_at else {
+            throttle.last_emit_at = Some(now);
+            return CallbackThrottleAction::Emit;
+        };
+
+        let elapsed = now.saturating_duration_since(last_emit_at);
+        if elapsed >= CALLBACK_THROTTLE_INTERVAL {
+            throttle.last_emit_at = Some(now);
+            CallbackThrottleAction::Emit
+        } else {
+            throttle.trailing_scheduled = true;
+            CallbackThrottleAction::Schedule {
+                delay: CALLBACK_THROTTLE_INTERVAL
+                    .checked_sub(elapsed)
+                    .expect("elapsed must be less than the callback throttle interval"),
+                generation: throttle.generation,
+            }
+        }
+    }
+
+    fn schedule_progress_callback(&self, delay: Duration, generation: u64) {
+        let inner = Arc::downgrade(&self.inner);
+        Self::schedule_callback(delay, move || {
+            if let Some(inner) = inner.upgrade() {
+                Self { inner }.emit_scheduled_progress_callback(generation);
+            }
+        });
+    }
+
+    fn schedule_speed_callback(&self, delay: Duration, generation: u64) {
+        let inner = Arc::downgrade(&self.inner);
+        Self::schedule_callback(delay, move || {
+            if let Some(inner) = inner.upgrade() {
+                Self { inner }.emit_scheduled_speed_callback(generation);
+            }
+        });
+    }
+
+    fn schedule_callback(callback_delay: Duration, callback: impl FnOnce() + Send + 'static) {
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let _task = handle.spawn(async move {
+                tokio::time::sleep(callback_delay).await;
+                callback();
+            });
+        } else {
+            let _handle = thread::spawn(move || {
+                thread::sleep(callback_delay);
+                callback();
+            });
+        }
+    }
+
+    fn emit_scheduled_progress_callback(&self, generation: u64) {
+        {
+            let mut throttle = self
+                .inner
+                .progress_throttle
+                .lock()
+                .expect("download progress callback throttle mutex poisoned");
+            if throttle.generation != generation {
+                return;
+            }
+            throttle.trailing_scheduled = false;
+            throttle.last_emit_at = Some(Instant::now());
+        }
+        self.emit_progress_callback();
+    }
+
+    fn emit_scheduled_speed_callback(&self, generation: u64) {
+        {
+            let mut throttle = self
+                .inner
+                .speed_throttle
+                .lock()
+                .expect("download speed callback throttle mutex poisoned");
+            if throttle.generation != generation {
+                return;
+            }
+            throttle.trailing_scheduled = false;
+            throttle.last_emit_at = Some(Instant::now());
+        }
+        self.emit_speed_callback();
+    }
+
+    fn emit_progress_callback(&self) {
         let callback = self
             .inner
             .progress_callback
@@ -458,7 +644,7 @@ impl SharedState {
         }
     }
 
-    fn notify_speed(&self) {
+    fn emit_speed_callback(&self) {
         let callback = self
             .inner
             .speed_callback
@@ -509,6 +695,16 @@ fn u64_to_f64(value: u64) -> f64 {
 mod tests {
     use super::*;
 
+    fn wait_for_len<T>(values: &Mutex<Vec<T>>, len: usize) {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while Instant::now() < deadline {
+            if values.lock().unwrap().len() >= len {
+                return;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+
     #[test]
     fn lifecycle_reports_transitional_pause_and_cancel_phases() {
         let state = SharedState::new();
@@ -541,7 +737,7 @@ mod tests {
     }
 
     #[test]
-    fn progress_callback_receives_current_and_changed_snapshots() {
+    fn progress_callback_receives_current_and_latest_changed_snapshots() {
         let state = SharedState::new();
         let phases = Arc::new(Mutex::new(Vec::new()));
         let callback_phases = Arc::clone(&phases);
@@ -551,16 +747,13 @@ mod tests {
         })));
         state.mark_running();
         state.mark_completed();
+        wait_for_len(&phases, 2);
         state.set_progress_callback(None);
         state.mark_failed("ignored");
 
         assert_eq!(
             *phases.lock().unwrap(),
-            vec![
-                DownloadPhase::Created,
-                DownloadPhase::Running,
-                DownloadPhase::Completed,
-            ]
+            vec![DownloadPhase::Created, DownloadPhase::Completed]
         );
     }
 
@@ -578,9 +771,10 @@ mod tests {
         })));
         state.record_body_bytes(10);
         state.record_body_bytes(15);
+        wait_for_len(&samples, 2);
         state.set_speed_callback(None);
         state.record_body_bytes(20);
 
-        assert_eq!(*samples.lock().unwrap(), vec![(0, 0), (10, 10), (25, 15)]);
+        assert_eq!(*samples.lock().unwrap(), vec![(0, 0), (25, 15)]);
     }
 }
