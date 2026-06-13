@@ -10,6 +10,8 @@ buildscript {
 
 apply plugin: 'com.android.library'
 
+// AGP 9 provides built-in Kotlin support for Android library modules.
+
 def takanawaVersion = "0.7.1"
 
 android {
