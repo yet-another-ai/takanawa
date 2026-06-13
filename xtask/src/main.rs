@@ -1,11 +1,16 @@
 use std::ffi::OsStr;
 use std::fs;
-use std::io::Write;
+use std::io::{ErrorKind, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{env, thread, time};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+const TEST_HTTP_PAYLOAD: &[u8] = b"takanawa integration fixture payload\n";
 
 fn main() {
     if let Err(error) = run_main() {
@@ -109,6 +114,108 @@ fn repo_command(program: impl AsRef<OsStr>) -> Command {
     let mut command = Command::new(program);
     command.current_dir(repo_root());
     command
+}
+
+struct TestHttpServer {
+    addr: SocketAddr,
+    shutdown: Arc<AtomicBool>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl TestHttpServer {
+    fn start() -> Result<Self> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        listener.set_nonblocking(true)?;
+        let addr = listener.local_addr()?;
+        let payload = Arc::new(TEST_HTTP_PAYLOAD.to_vec());
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let thread_shutdown = Arc::clone(&shutdown);
+        let thread = thread::spawn(move || {
+            while !thread_shutdown.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        let payload = Arc::clone(&payload);
+                        thread::spawn(move || handle_test_http_connection(stream, &payload));
+                    }
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                        thread::sleep(time::Duration::from_millis(10));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        Ok(Self {
+            addr,
+            shutdown,
+            thread: Some(thread),
+        })
+    }
+
+    fn url(&self) -> String {
+        format!("http://{}/file", self.addr)
+    }
+
+    fn configure_command(&self, command: &mut Command) {
+        command.env("TAKANAWA_TEST_URL", self.url());
+        command.env(
+            "TAKANAWA_TEST_EXPECTED_BYTES",
+            String::from_utf8_lossy(TEST_HTTP_PAYLOAD).as_ref(),
+        );
+    }
+}
+
+impl Drop for TestHttpServer {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn handle_test_http_connection(mut stream: TcpStream, payload: &[u8]) {
+    let mut buffer = [0; 4096];
+    let read = stream.read(&mut buffer).unwrap_or(0);
+    let request = String::from_utf8_lossy(&buffer[..read]);
+    let Some((start, end)) = request_range(&request) else {
+        let _ = stream.write_all(
+            b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+        return;
+    };
+
+    if start >= payload.len() {
+        let response = format!(
+            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            payload.len()
+        );
+        let _ = stream.write_all(response.as_bytes());
+        return;
+    }
+
+    let end = end.min(payload.len() - 1);
+    let body = &payload[start..=end];
+    let response = format!(
+        "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{end}/{}\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\nConnection: close\r\n\r\n",
+        payload.len(),
+        body.len()
+    );
+    let _ = stream.write_all(response.as_bytes());
+    let _ = stream.write_all(body);
+}
+
+fn request_range(request: &str) -> Option<(usize, usize)> {
+    let range = request.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.eq_ignore_ascii_case("range") {
+            value.trim().strip_prefix("bytes=")
+        } else {
+            None
+        }
+    })?;
+    let (start, end) = range.split_once('-')?;
+    Some((start.parse().ok()?, end.parse().ok()?))
 }
 
 fn run_command(command: &mut Command) -> Result<()> {
@@ -521,6 +628,7 @@ fn check_csharp() -> Result<()> {
     ]))?;
     run_command(repo_command("cargo").args(["build", "-p", "takanawa-ffi", "--locked"]))?;
 
+    let server = TestHttpServer::start()?;
     let mut smoke = repo_command("dotnet");
     smoke.args([
         "run",
@@ -530,6 +638,7 @@ fn check_csharp() -> Result<()> {
         "Release",
     ]);
     prepend_dynamic_library_path(&mut smoke, &native_dir);
+    server.configure_command(&mut smoke);
     run_command(&mut smoke)?;
 
     let version = workspace_version()?;
@@ -1075,7 +1184,11 @@ fn test_cmake_integration() -> Result<()> {
             .arg("-DTAKANAWA_CARGO_PROFILE=debug"),
     )?;
     run_command(repo_command("cmake").arg("--build").arg(&build_dir))?;
-    run_command(Command::new(build_dir.join("takanawa_cpp_smoke")).current_dir(repo_root()))
+    let server = TestHttpServer::start()?;
+    let mut smoke = Command::new(build_dir.join("takanawa_cpp_smoke"));
+    smoke.current_dir(repo_root());
+    server.configure_command(&mut smoke);
+    run_command(&mut smoke)
 }
 
 fn test_swift_integration() -> Result<()> {
@@ -1127,12 +1240,14 @@ fn test_swift_integration() -> Result<()> {
             .args(["build", "--package-path"])
             .arg(&package_dir),
     )?;
-    run_command(
-        repo_command("swift")
-            .args(["run", "--package-path"])
-            .arg(&package_dir)
-            .arg("TakanawaSmoke"),
-    )
+    let server = TestHttpServer::start()?;
+    let mut smoke = repo_command("swift");
+    smoke
+        .args(["run", "--package-path"])
+        .arg(&package_dir)
+        .arg("TakanawaSmoke");
+    server.configure_command(&mut smoke);
+    run_command(&mut smoke)
 }
 
 fn check_apple() -> Result<()> {

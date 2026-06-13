@@ -82,6 +82,75 @@ pub enum TknwHashKind {
     Crc32 = 5,
 }
 
+/// Download lifecycle phases reported in snapshot `phase` fields.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TknwDownloadPhase {
+    /// The download handle has been created but not started.
+    Created = 0,
+    /// The download is actively fetching, writing, or finalizing.
+    Running = 1,
+    /// The download is paused and can be started again.
+    Paused = 2,
+    /// The download has been cancelled.
+    Cancelled = 3,
+    /// The download finished successfully.
+    Completed = 4,
+    /// The download failed.
+    Failed = 5,
+    /// A pause was requested and in-flight work is winding down.
+    Pausing = 6,
+    /// A cancellation was requested and in-flight work is winding down.
+    Cancelling = 7,
+    /// A start or resume request was accepted and background work is starting.
+    Starting = 8,
+    /// The download is opening, validating, or allocating its part file.
+    Allocating = 9,
+    /// The completed part file is being verified before promotion.
+    Verifying = 10,
+}
+
+impl From<DownloadPhase> for TknwDownloadPhase {
+    fn from(phase: DownloadPhase) -> Self {
+        match phase {
+            DownloadPhase::Created => Self::Created,
+            DownloadPhase::Running => Self::Running,
+            DownloadPhase::Paused => Self::Paused,
+            DownloadPhase::Cancelled => Self::Cancelled,
+            DownloadPhase::Completed => Self::Completed,
+            DownloadPhase::Failed => Self::Failed,
+            DownloadPhase::Pausing => Self::Pausing,
+            DownloadPhase::Cancelling => Self::Cancelling,
+            DownloadPhase::Starting => Self::Starting,
+            DownloadPhase::Allocating => Self::Allocating,
+            DownloadPhase::Verifying => Self::Verifying,
+        }
+    }
+}
+
+/// Numeric value for [`TknwDownloadPhase::Created`].
+pub const TKNW_DOWNLOAD_PHASE_CREATED: u32 = 0;
+/// Numeric value for [`TknwDownloadPhase::Running`].
+pub const TKNW_DOWNLOAD_PHASE_RUNNING: u32 = 1;
+/// Numeric value for [`TknwDownloadPhase::Paused`].
+pub const TKNW_DOWNLOAD_PHASE_PAUSED: u32 = 2;
+/// Numeric value for [`TknwDownloadPhase::Cancelled`].
+pub const TKNW_DOWNLOAD_PHASE_CANCELLED: u32 = 3;
+/// Numeric value for [`TknwDownloadPhase::Completed`].
+pub const TKNW_DOWNLOAD_PHASE_COMPLETED: u32 = 4;
+/// Numeric value for [`TknwDownloadPhase::Failed`].
+pub const TKNW_DOWNLOAD_PHASE_FAILED: u32 = 5;
+/// Numeric value for [`TknwDownloadPhase::Pausing`].
+pub const TKNW_DOWNLOAD_PHASE_PAUSING: u32 = 6;
+/// Numeric value for [`TknwDownloadPhase::Cancelling`].
+pub const TKNW_DOWNLOAD_PHASE_CANCELLING: u32 = 7;
+/// Numeric value for [`TknwDownloadPhase::Starting`].
+pub const TKNW_DOWNLOAD_PHASE_STARTING: u32 = 8;
+/// Numeric value for [`TknwDownloadPhase::Allocating`].
+pub const TKNW_DOWNLOAD_PHASE_ALLOCATING: u32 = 9;
+/// Numeric value for [`TknwDownloadPhase::Verifying`].
+pub const TKNW_DOWNLOAD_PHASE_VERIFYING: u32 = 10;
+
 /// Global runtime configuration for [`tknw_global_init`].
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -811,8 +880,8 @@ fn status_from_error(err: &TakanawaError) -> TknwStatus {
     }
 }
 
-const fn phase_to_u32(phase: DownloadPhase) -> u32 {
-    phase as u32
+fn phase_to_u32(phase: DownloadPhase) -> u32 {
+    TknwDownloadPhase::from(phase) as u32
 }
 
 fn snapshot_to_ffi(snapshot: &DownloadSnapshot) -> TknwDownloadSnapshot {

@@ -5,6 +5,7 @@ project(takanawa_cmake_integration LANGUAGES CXX)
 add_subdirectory("../.." takanawa-build)
 
 add_executable(takanawa_cpp_smoke main.cpp)
+target_compile_features(takanawa_cpp_smoke PRIVATE cxx_std_17)
 target_link_libraries(takanawa_cpp_smoke PRIVATE Takanawa::takanawa)
 
 if(WIN32 AND BUILD_SHARED_LIBS)

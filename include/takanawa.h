@@ -15,6 +15,61 @@
 #define TKNW_ABI_VERSION 1
 
 /**
+ * Numeric value for [`TknwDownloadPhase::Created`].
+ */
+#define TKNW_DOWNLOAD_PHASE_CREATED 0
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Running`].
+ */
+#define TKNW_DOWNLOAD_PHASE_RUNNING 1
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Paused`].
+ */
+#define TKNW_DOWNLOAD_PHASE_PAUSED 2
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Cancelled`].
+ */
+#define TKNW_DOWNLOAD_PHASE_CANCELLED 3
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Completed`].
+ */
+#define TKNW_DOWNLOAD_PHASE_COMPLETED 4
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Failed`].
+ */
+#define TKNW_DOWNLOAD_PHASE_FAILED 5
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Pausing`].
+ */
+#define TKNW_DOWNLOAD_PHASE_PAUSING 6
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Cancelling`].
+ */
+#define TKNW_DOWNLOAD_PHASE_CANCELLING 7
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Starting`].
+ */
+#define TKNW_DOWNLOAD_PHASE_STARTING 8
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Allocating`].
+ */
+#define TKNW_DOWNLOAD_PHASE_ALLOCATING 9
+
+/**
+ * Numeric value for [`TknwDownloadPhase::Verifying`].
+ */
+#define TKNW_DOWNLOAD_PHASE_VERIFYING 10
+
+/**
  * Status codes returned by the C ABI.
  */
 enum TknwStatus
@@ -101,63 +156,6 @@ enum TknwStatus
 };
 #ifndef __cplusplus
 typedef int32_t TknwStatus;
-#endif // __cplusplus
-
-/**
- * Download lifecycle phases reported in snapshot `phase` fields.
- */
-enum TknwDownloadPhase
-#ifdef __cplusplus
-  : uint32_t
-#endif // __cplusplus
- {
-  /**
-   * The download handle has been created but not started.
-   */
-  TKNW_DOWNLOAD_PHASE_CREATED = 0,
-  /**
-   * The download is actively fetching, writing, or finalizing.
-   */
-  TKNW_DOWNLOAD_PHASE_RUNNING = 1,
-  /**
-   * The download is paused and can be started again.
-   */
-  TKNW_DOWNLOAD_PHASE_PAUSED = 2,
-  /**
-   * The download has been cancelled.
-   */
-  TKNW_DOWNLOAD_PHASE_CANCELLED = 3,
-  /**
-   * The download finished successfully.
-   */
-  TKNW_DOWNLOAD_PHASE_COMPLETED = 4,
-  /**
-   * The download failed.
-   */
-  TKNW_DOWNLOAD_PHASE_FAILED = 5,
-  /**
-   * A pause was requested and in-flight work is winding down.
-   */
-  TKNW_DOWNLOAD_PHASE_PAUSING = 6,
-  /**
-   * A cancellation was requested and in-flight work is winding down.
-   */
-  TKNW_DOWNLOAD_PHASE_CANCELLING = 7,
-  /**
-   * A start or resume request was accepted and background work is starting.
-   */
-  TKNW_DOWNLOAD_PHASE_STARTING = 8,
-  /**
-   * The download is opening, validating, or allocating its part file.
-   */
-  TKNW_DOWNLOAD_PHASE_ALLOCATING = 9,
-  /**
-   * The completed part file is being verified before promotion.
-   */
-  TKNW_DOWNLOAD_PHASE_VERIFYING = 10,
-};
-#ifndef __cplusplus
-typedef uint32_t TknwDownloadPhase;
 #endif // __cplusplus
 
 /**

@@ -42,6 +42,18 @@ jobs:
       - run: mise run clippy
       - run: mise run test
 
+  c-abi:
+    name: C ABI integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - run: mise run test:integration:c-abi
+
   js:
     name: JS packages
     runs-on: ubuntu-latest

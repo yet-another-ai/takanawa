@@ -74,6 +74,23 @@ description = "Build and run the CMake C++ smoke fixture against the C ABI targe
 run = "cargo run -p xtask -- test-cmake-integration"
 sources = ["xtask/**/*.rs", "CMakeLists.txt", "cmake/**/*.cmake.in", "fixtures/cmake-integration/**/*", "include/takanawa.h", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml"]
 
+[tasks."test:integration:rust"]
+description = "Run Rust crate-level integration tests"
+run = "cargo test -p takanawa-http --test download_integration --all-features --locked"
+sources = ["Cargo.toml", "Cargo.lock", "crates/takanawa-http/**/*.rs", "crates/takanawa-http/**/*.toml", "crates/takanawa-core/**/*.rs", "crates/takanawa-core/**/*.toml"]
+
+[tasks."test:integration:c-abi"]
+description = "Run C ABI integration tests through the CMake C++ consumer"
+depends = ["test:cmake-integration"]
+
+[tasks."test:integration:bindings"]
+description = "Run host language binding integration smoke tests"
+depends = ["test:csharp"]
+
+[tasks."test:integration"]
+description = "Run host integration tests that do not require mobile or Apple SDKs"
+depends = ["test:integration:rust", "test:integration:c-abi", "test:integration:bindings"]
+
 [tasks."build:desktop"]
 description = "Build all workspace crates for the current desktop host"
 depends = ["header"]
