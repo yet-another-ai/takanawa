@@ -18,9 +18,9 @@
  * Status codes returned by the C ABI.
  */
 enum TknwStatus
-#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+#ifdef __cplusplus
   : int32_t
-#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+#endif // __cplusplus
  {
   /**
    * Operation completed successfully.
@@ -100,11 +100,7 @@ enum TknwStatus
   TKNW_STATUS_INTERNAL = -101,
 };
 #ifndef __cplusplus
-#if __STDC_VERSION__ >= 202311L
-typedef enum TknwStatus TknwStatus;
-#else
 typedef int32_t TknwStatus;
-#endif // __STDC_VERSION__ >= 202311L
 #endif // __cplusplus
 
 /**
@@ -247,26 +243,65 @@ typedef struct TknwDownloadSnapshot {
 } TknwDownloadSnapshot;
 
 /**
+ * C callback invoked when download progress changes.
+ */
+typedef void (*TknwProgressCallback)(const struct TknwDownloadSnapshot *snapshot, void *context);
+
+/**
  * C callback invoked when a progress callback context is released.
  */
+typedef void (*TknwProgressCallbackRelease)(void *context);
+
+/**
+ * Download speed sample written by the C ABI.
+ */
 typedef struct TknwDownloadSpeedSnapshot {
+  /**
+   * Always [`TKNW_ABI_VERSION`] on output and required on input.
+   */
   uint32_t abi_version;
+  /**
+   * Must be at least `size_of::<TknwDownloadSpeedSnapshot>()` on input.
+   */
   size_t struct_size;
+  /**
+   * Current phase as a `DownloadPhase` numeric value.
+   */
   uint32_t phase;
+  /**
+   * Total content length in bytes.
+   */
   uint64_t content_len;
+  /**
+   * Bytes represented by committed chunks plus response-body bytes observed for this task.
+   */
   uint64_t received_bytes;
+  /**
+   * Bytes observed since the previous speed sample.
+   */
   uint64_t interval_bytes;
+  /**
+   * Milliseconds elapsed since the previous speed sample.
+   */
   uint64_t elapsed_millis;
+  /**
+   * Current transfer speed in bytes per second for this sample interval.
+   */
   double bytes_per_second;
+  /**
+   * Current number of active I/O operations.
+   */
   size_t active_io;
 } TknwDownloadSpeedSnapshot;
 
-typedef void (*TknwProgressCallback)(const struct TknwDownloadSnapshot *snapshot, void *context);
-
+/**
+ * C callback invoked when download speed samples change.
+ */
 typedef void (*TknwSpeedCallback)(const struct TknwDownloadSpeedSnapshot *snapshot, void *context);
 
-typedef void (*TknwProgressCallbackRelease)(void *context);
-
+/**
+ * C callback invoked when a speed callback context is released.
+ */
 typedef void (*TknwSpeedCallbackRelease)(void *context);
 
 #ifdef __cplusplus
@@ -366,6 +401,21 @@ TknwStatus tknw_download_set_progress_callback(struct TknwDownload *download,
                                                TknwProgressCallbackRelease context_release);
 
 /**
+ * Installs or removes a speed callback for a download.
+ *
+ * Passing `None` as `callback` removes the callback. A non-null `context` or
+ * release callback requires a non-null speed callback.
+ *
+ * # Panics
+ *
+ * Panics if the last-error mutex or callback mutex is poisoned.
+ */
+TknwStatus tknw_download_set_speed_callback(struct TknwDownload *download,
+                                            TknwSpeedCallback callback,
+                                            void *context,
+                                            TknwSpeedCallbackRelease context_release);
+
+/**
  * Copies the serialized completion bitmap into `buffer`.
  *
  * Always writes the required byte count to `written`. If `buffer_len` is too
@@ -375,12 +425,6 @@ TknwStatus tknw_download_set_progress_callback(struct TknwDownload *download,
  *
  * Panics if shared progress state is poisoned.
  */
-TknwStatus tknw_download_set_speed_callback(struct TknwDownload *download,
-                                            TknwSpeedCallback callback,
-                                            void *context,
-                                            TknwSpeedCallbackRelease context_release);
-
-
 TknwStatus tknw_download_copy_bitmap(const struct TknwDownload *download,
                                      unsigned char *buffer,
                                      size_t buffer_len,
