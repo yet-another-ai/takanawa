@@ -5,6 +5,8 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
+// AGP 9 provides built-in Kotlin support for Android library modules.
+
 android {
     namespace = "ai.yetanother.takanawa"
     compileSdk = 36

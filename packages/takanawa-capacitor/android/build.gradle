@@ -1,14 +1,28 @@
 buildscript {
+    def takanawaKotlinVersion = rootProject.ext.has("kotlinVersion")
+        ? rootProject.ext.kotlinVersion
+        : (rootProject.ext.has("kotlin_version") ? rootProject.ext.kotlin_version : "2.2.10")
+
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:9.2.0'
+        // Needed only when this Capacitor plugin is built by AGP < 9 hosts.
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$takanawaKotlinVersion"
     }
 }
 
 apply plugin: 'com.android.library'
+
+def takanawaAgpMajorVersion() {
+    return com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.').first() as int
+}
+
+// AGP 9 provides built-in Kotlin support; AGP 8 and below still need the legacy plugin.
+if (takanawaAgpMajorVersion() < 9) {
+    apply plugin: 'kotlin-android'
+}
 
 def takanawaVersion = "0.7.1"
 
@@ -46,4 +60,42 @@ dependencies {
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.json:json:20260522"
+}
+
+tasks.register("verifyReleaseAar") {
+    description = "Verify the Capacitor Android AAR contains compiled plugin classes."
+    group = "verification"
+    dependsOn("bundleReleaseAar")
+
+    def aar = layout.buildDirectory.file("outputs/aar/takanawa-capacitor-release.aar")
+    inputs.file(aar)
+
+    doLast {
+        def requiredClasses = [
+            "ai/yetanother/takanawa/capacitor/TakanawaCapacitorPlugin.class",
+            "ai/yetanother/takanawa/capacitor/TakanawaTaskRegistry.class",
+            "ai/yetanother/takanawa/capacitor/TakanawaSnapshotMapperKt.class",
+            "ai/yetanother/takanawa/capacitor/TakanawaCapacitorOptions.class"
+        ]
+
+        new java.util.zip.ZipFile(aar.get().asFile).withCloseable { aarZip ->
+            def classesEntry = aarZip.getEntry("classes.jar")
+            if (classesEntry == null) {
+                throw new GradleException("Missing classes.jar in ${aar.get().asFile}")
+            }
+
+            def classBytes = aarZip.getInputStream(classesEntry).bytes
+            new java.util.zip.ZipInputStream(new ByteArrayInputStream(classBytes)).withCloseable { classesZip ->
+                def entries = [] as Set
+                for (def entry = classesZip.nextEntry; entry != null; entry = classesZip.nextEntry) {
+                    entries.add(entry.name)
+                }
+
+                def missing = requiredClasses.findAll { !entries.contains(it) }
+                if (!missing.isEmpty()) {
+                    throw new GradleException("Missing expected Capacitor AAR classes: ${missing.join(', ')}")
+                }
+            }
+        }
+    }
 }
