@@ -7,26 +7,18 @@ changelog:
     - title: Breaking Changes
       labels:
         - breaking-change
-        - semver-major
-        - Semver-Major
     - title: Features
       labels:
         - enhancement
-        - feature
-        - semver-minor
-        - Semver-Minor
     - title: Fixes
       labels:
         - bug
-        - fix
     - title: Documentation
       labels:
-        - documentation
         - docs
     - title: Maintenance
       labels:
         - chore
-        - dependencies
     - title: Other Changes
       labels:
         - "*"
