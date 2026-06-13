@@ -7,7 +7,7 @@
     <AssemblyName>YetAnotherAI.Takanawa</AssemblyName>
     <RootNamespace>YetAnotherAI.Takanawa</RootNamespace>
     <PackageId>YetAnotherAI.Takanawa</PackageId>
-    <Version>0.7.1</Version>
+    <Version>0.7.2</Version>
     <Authors>yet another ai</Authors>
     <Company>yet another ai</Company>
     <Description>C# binding for the Takanawa Rust range-download library.</Description>

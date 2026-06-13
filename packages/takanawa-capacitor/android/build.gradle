@@ -24,7 +24,7 @@ if (takanawaAgpMajorVersion() < 9) {
     apply plugin: 'kotlin-android'
 }
 
-def takanawaVersion = "0.7.1"
+def takanawaVersion = "0.7.2"
 
 android {
     namespace "ai.yetanother.takanawa.capacitor"

@@ -1293,7 +1293,7 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
         download.pause().unwrap();
 
-        let snapshot = wait_for_phase(&download, DownloadPhase::Paused);
+        let snapshot = wait_for_phase_and_idle(&download, DownloadPhase::Paused);
 
         assert_eq!(snapshot.completed_chunks, 0);
         assert_eq!(snapshot.downloaded_bytes, 0);
@@ -1326,7 +1326,7 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
         download.pause().unwrap();
 
-        let snapshot = wait_for_phase(&download, DownloadPhase::Paused);
+        let snapshot = wait_for_phase_and_idle(&download, DownloadPhase::Paused);
 
         assert_eq!(snapshot.completed_chunks, 0);
         assert_eq!(snapshot.downloaded_bytes, 0);
@@ -1640,5 +1640,28 @@ mod tests {
             thread::sleep(Duration::from_millis(20));
         }
         download.snapshot()
+    }
+
+    fn wait_for_phase_and_idle(
+        download: &DownloadHandle,
+        phase: DownloadPhase,
+    ) -> DownloadSnapshot {
+        for _ in 0..500 {
+            let snapshot = download.snapshot();
+            let idle = download
+                .join
+                .lock()
+                .expect("download join mutex poisoned")
+                .as_ref()
+                .is_none_or(tokio::task::JoinHandle::is_finished);
+            if snapshot.phase == phase && idle {
+                return snapshot;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        panic!(
+            "download did not reach {phase:?} and idle state; latest snapshot: {:?}",
+            download.snapshot()
+        );
     }
 }
