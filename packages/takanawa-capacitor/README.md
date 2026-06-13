@@ -2,6 +2,9 @@
 
 Capacitor bindings for Takanawa on Android and iOS.
 
+The npm package includes the Capacitor bridge source and the iOS
+`Takanawa.xcframework` used by the Swift Package manifest.
+
 ## Install
 
 ```sh

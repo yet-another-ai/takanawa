@@ -80,10 +80,6 @@ fn published_version_references_match_workspace_version() {
 
     let version_literals = [
         ("README.md", "takanawa-android"),
-        (
-            "packages/takanawa-capacitor/Package.swift",
-            "takanawa.git\", exact",
-        ),
         ("Cargo.toml", "takanawa-core"),
         ("Cargo.toml", "takanawa-http"),
         (
@@ -162,27 +158,44 @@ fn published_version_references_match_workspace_version() {
 }
 
 #[test]
-fn version_sync_tracks_package_swift() {
+fn capacitor_npm_package_bundles_ios_xcframework() {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
         .expect("takanawa-core lives under crates/takanawa-core");
-    let mise_toml =
-        fs::read_to_string(workspace_root.join("mise.toml")).expect("mise.toml should be readable");
     let xtask_main = fs::read_to_string(workspace_root.join("xtask/src/main.rs"))
         .expect("xtask main should be readable");
-
+    let package_swift =
+        fs::read_to_string(workspace_root.join("packages/takanawa-capacitor/Package.swift"))
+            .expect("Capacitor Package.swift should be readable");
+    let package_json =
+        fs::read_to_string(workspace_root.join("packages/takanawa-capacitor/package.json"))
+            .expect("Capacitor package.json should be readable");
+    let gitignore = fs::read_to_string(workspace_root.join(".gitignore"))
+        .expect(".gitignore should be readable");
     assert!(
-        mise_toml.contains(r#""packages/takanawa-capacitor/Package.swift""#),
-        "mise version:sync sources must include packages/takanawa-capacitor/Package.swift so sync-version.sh reruns when the SwiftPM dependency version changes"
+        package_swift.contains(r#"path: "ios/Takanawa.xcframework""#),
+        "Capacitor Package.swift must load the bundled npm XCFramework by default"
     );
     assert!(
-        xtask_main.contains(r#""takanawa.git\", exact: \""#),
-        "xtask sync-version must update the Takanawa SwiftPM dependency version in packages/takanawa-capacitor/Package.swift"
+        package_swift.contains(r#"path: "ios/Sources/Takanawa""#),
+        "Capacitor Package.swift must load the staged Takanawa Swift wrapper source"
     );
     assert!(
-        mise_toml.contains(r#""package.json""#),
-        "mise version:sync sources must include package.json so the root npm manifest stays aligned with the workspace version"
+        package_json.contains(r#""ios/Takanawa.xcframework""#),
+        "Capacitor npm package must include the staged XCFramework"
+    );
+    assert!(
+        gitignore.contains("packages/takanawa-capacitor/ios/Takanawa.xcframework/"),
+        "staged Capacitor XCFramework must stay out of git"
+    );
+    assert!(
+        gitignore.contains("packages/takanawa-capacitor/ios/Sources/Takanawa/"),
+        "staged Capacitor Swift wrapper source must stay out of git"
+    );
+    assert!(
+        xtask_main.contains("prepare_capacitor_npm_package"),
+        "npm publish must stage the Capacitor XCFramework before packing"
     );
 }
 

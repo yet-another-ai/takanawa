@@ -84,13 +84,15 @@ jobs:
 
   npm-publish-dry-run:
     name: npm publish dry-run
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     if: github.ref_type != 'tag'
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
           experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - run: mise run package:apple
       - run: mise run npm:publish-dry-run
 
   csharp:

@@ -195,6 +195,7 @@ jobs:
   npm-publish:
     name: npm publish
     runs-on: ubuntu-latest
+    needs: artifact-apple
     environment: npm-registry
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
@@ -202,6 +203,10 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           experimental: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: Takanawa.xcframework-swiftpm
+          path: target/swiftpm
       - run: mise run npm:publish
 
   publish-nuget:

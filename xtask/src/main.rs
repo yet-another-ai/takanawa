@@ -759,6 +759,13 @@ fn npm_publish(mode: &str) -> Result<()> {
         return Ok(());
     }
 
+    if packages
+        .iter()
+        .any(|package| package.name == "takanawa-capacitor")
+    {
+        prepare_capacitor_npm_package()?;
+    }
+
     for package in &packages {
         println!("::group::pnpm --filter {} build", package.name);
         run_command(repo_command("pnpm").args(["--filter", package.name.as_str(), "build"]))?;
@@ -871,6 +878,50 @@ fn publishable_npm_packages() -> Result<Vec<NpmPackage>> {
     }
 
     Ok(packages)
+}
+
+fn prepare_capacitor_npm_package() -> Result<()> {
+    let root = repo_root();
+    let package_xcframework = root.join("packages/takanawa-capacitor/ios/Takanawa.xcframework");
+    let package_takanawa_source = root.join("packages/takanawa-capacitor/ios/Sources/Takanawa");
+    let swiftpm_zip = root.join("target/swiftpm/Takanawa.xcframework.zip");
+    let local_xcframework = root.join("target/apple/Takanawa.xcframework");
+
+    if package_xcframework.is_dir() {
+        fs::remove_dir_all(&package_xcframework)?;
+    }
+    if package_takanawa_source.is_dir() {
+        fs::remove_dir_all(&package_takanawa_source)?;
+    }
+
+    if swiftpm_zip.is_file() {
+        run_command(
+            repo_command("unzip")
+                .args(["-q", "-o"])
+                .arg(&swiftpm_zip)
+                .arg("-d")
+                .arg(root.join("packages/takanawa-capacitor/ios")),
+        )?;
+    } else if local_xcframework.is_dir() {
+        copy_dir(&local_xcframework, &package_xcframework)?;
+    } else {
+        return Err(
+            "missing Takanawa.xcframework for takanawa-capacitor; download the Apple artifact or run mise run package:apple first"
+                .into(),
+        );
+    }
+
+    if !package_xcframework.is_dir() {
+        return Err("ios/Takanawa.xcframework was not staged for takanawa-capacitor".into());
+    }
+
+    copy_dir(&root.join("Sources/Takanawa"), &package_takanawa_source)?;
+
+    println!(
+        "::notice title=Staged Capacitor XCFramework::{}",
+        package_xcframework.display()
+    );
+    Ok(())
 }
 
 fn package_swiftpm() -> Result<()> {
@@ -1335,19 +1386,6 @@ fn sync_version() -> Result<()> {
         "\"",
         &version,
     )?;
-    for package_swift in [
-        "packages/takanawa-capacitor/Package.swift",
-        "packages/takanawa-capacitor/ios/Package.swift",
-    ] {
-        if repo_root().join(package_swift).is_file() {
-            replace_between_all_in_file(
-                package_swift,
-                "takanawa.git\", exact: \"",
-                "\"",
-                &version,
-            )?;
-        }
-    }
     replace_between_all_in_file(
         "README.md",
         "implementation(\"ai.yetanother:takanawa-android:",

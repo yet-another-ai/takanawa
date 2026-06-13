@@ -30,7 +30,8 @@
     "android/build.gradle",
     "android/src/main",
     "Package.swift",
-    "ios/Sources"
+    "ios/Sources",
+    "ios/Takanawa.xcframework"
   ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-capacitor/src/index.d.ts', 'dist/index.d.ts')\"",

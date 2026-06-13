@@ -13,9 +13,10 @@ pnpm add takanawa-capacitor
 npx cap sync
 ```
 
-The package has a peer dependency on `@capacitor/core >=8 <9`. Its Android and
-iOS bridge source is shipped in the npm package; it does not require a separate
-Maven or SwiftPM package for the plugin layer.
+The package has a peer dependency on `@capacitor/core >=8 <9`. Its Android
+bridge source, iOS bridge source, and `Takanawa.xcframework` are shipped in the
+npm package; it does not require a separate Maven or SwiftPM package for the
+plugin layer.
 
 ## Usage
 
