@@ -46,7 +46,13 @@ fn run_main() -> Result<()> {
         "swiftpm-release-manifest" => {
             swiftpm_release_manifest(args.next().or_else(|| env::var("GITHUB_REF_NAME").ok()))
         }
-        "sync-version" => sync_version(),
+        "sync-version" => {
+            let version = args.next();
+            if args.next().is_some() {
+                return Err("usage: xtask sync-version [version]".into());
+            }
+            sync_version(version)
+        }
         "test-capacitor-ios" => test_capacitor_ios(),
         "test-cmake-integration" => test_cmake_integration(),
         "test-swift-integration" => test_swift_integration(),
@@ -84,7 +90,7 @@ fn print_usage() {
          publish-android-central\n  \
          publish-crates\n  \
          swiftpm-release-manifest [version]\n  \
-         sync-version\n  \
+         sync-version [version]\n  \
          test-capacitor-ios\n  \
          test-cmake-integration\n  \
          test-swift-integration\n  \
@@ -1360,8 +1366,11 @@ fn wait_for_crate_version(krate: &str, version: &str) -> Result<()> {
     Err(format!("{krate} {version} did not become visible on crates.io").into())
 }
 
-fn sync_version() -> Result<()> {
-    let version = workspace_version()?;
+fn sync_version(version: Option<String>) -> Result<()> {
+    let version = match version {
+        Some(version) => version,
+        None => workspace_version()?,
+    };
     sync_cargo_workspace_versions(&version)?;
     replace_project_version("CMakeLists.txt", "project(Takanawa VERSION ", &version)?;
     sync_json_version("ports/takanawa/vcpkg.json", &version)?;
@@ -1420,6 +1429,7 @@ fn workspace_version() -> Result<String> {
 fn sync_cargo_workspace_versions(version: &str) -> Result<()> {
     let path = repo_root().join("Cargo.toml");
     let mut document = read_toml_document(&path)?;
+    sync_workspace_package_version(&mut document, version)?;
     for (dependency, expected_path) in [
         ("takanawa-core", "crates/takanawa-core"),
         ("takanawa-http", "crates/takanawa-http"),
@@ -1427,6 +1437,23 @@ fn sync_cargo_workspace_versions(version: &str) -> Result<()> {
         sync_workspace_dependency_version(&mut document, dependency, expected_path, version)?;
     }
     fs::write(path, document.to_string())?;
+    Ok(())
+}
+
+fn sync_workspace_package_version(
+    document: &mut toml_edit::DocumentMut,
+    version: &str,
+) -> Result<()> {
+    let workspace_package = document
+        .get_mut("workspace")
+        .and_then(toml_edit::Item::as_table_mut)
+        .and_then(|workspace| workspace.get_mut("package"))
+        .and_then(toml_edit::Item::as_table_mut)
+        .ok_or("missing [workspace.package] in Cargo.toml")?;
+    let package_version = workspace_package
+        .get_mut("version")
+        .ok_or("missing [workspace.package] version in Cargo.toml")?;
+    *package_version = toml_edit::value(version);
     Ok(())
 }
 

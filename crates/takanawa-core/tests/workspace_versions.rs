@@ -102,7 +102,7 @@ fn published_version_references_match_workspace_version() {
                 || contents.contains(&format!("{nearby_text}{workspace_version}"))
                 || contents.contains(&format!("{nearby_text} {workspace_version}"))
                 || contents.contains(&format!("{nearby_text}: \"{workspace_version}\"")),
-            "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync` after changing the workspace version"
+            "{relative_path} must use workspace package version {workspace_version} near {nearby_text}; run `mise run version:sync {workspace_version}` to sync release references"
         );
     }
 

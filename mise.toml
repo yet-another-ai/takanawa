@@ -31,7 +31,7 @@ description = "Install Rust components required by CI lint tasks"
 run = "rustup component add rustfmt clippy"
 
 [tasks."version:sync"]
-description = "Sync release-version references from Cargo.toml"
+description = "Bump and sync release-version references"
 run = "cargo run -p xtask -- sync-version"
 sources = ["Cargo.toml", "xtask/**/*.rs", "README.md", "CMakeLists.txt", "docs/**/*.md", "ports/takanawa/vcpkg.json", "package.json", "packages/*/package.json", "packages/*/README.md", "packages/takanawa-csharp/**/*.csproj", "packages/takanawa-capacitor/Package.swift", "packages/takanawa-capacitor/ios/Package.swift"]
 
