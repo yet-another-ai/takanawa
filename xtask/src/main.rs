@@ -1186,7 +1186,8 @@ fn test_cmake_integration() -> Result<()> {
     run_command(repo_command("cmake").arg("--build").arg(&build_dir))?;
     let server = TestHttpServer::start()?;
     let mut smoke = Command::new(build_dir.join("takanawa_cpp_smoke"));
-    smoke.current_dir(repo_root());
+    smoke.current_dir(&build_dir);
+    prepend_dynamic_library_path(&mut smoke, &build_dir.join("takanawa-build/cargo/debug"));
     server.configure_command(&mut smoke);
     run_command(&mut smoke)
 }
