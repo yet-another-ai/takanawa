@@ -17,7 +17,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   PUBLISH_CRATES: takanawa-core takanawa-http takanawa-ffi takanawa-cli tauri-plugin-takanawa
-  RUSTC_WRAPPER: sccache
   SCCACHE_GHA_ENABLED: "true"
 
 jobs:
@@ -38,6 +37,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Publish crates in dependency order
         env:
@@ -55,6 +57,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Build Linux dynamic library
         run: mise run dist:linux
       - uses: actions/upload-artifact@v4
@@ -83,6 +88,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Build Windows dynamic library
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
@@ -104,6 +112,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Build macOS dynamic library and Apple XCFramework
         run: mise run dist:macos-universal
       - name: Build Apple SwiftPM artifacts
@@ -131,6 +142,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
       - name: Build Android AAR and JNI libraries
         run: mise run dist:android
@@ -156,6 +170,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Validate Maven Central secrets
@@ -197,6 +214,9 @@ jobs:
           path: target/release-artifacts
           merge-multiple: true
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,6 +238,9 @@ jobs:
           name: Takanawa.xcframework-swiftpm
           path: target/swiftpm
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run npm:publish
 
   publish-nuget:
@@ -243,6 +266,9 @@ jobs:
           path: target/release-artifacts
           merge-multiple: true
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Prepare NuGet native assets
         run: cargo run -p xtask -- prepare-csharp-nuget-assets
       - name: NuGet login

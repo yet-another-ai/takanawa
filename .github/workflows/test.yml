@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 env:
-  RUSTC_WRAPPER: sccache
   SCCACHE_GHA_ENABLED: "true"
 
 concurrency:
@@ -38,9 +37,27 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run fmt
       - run: mise run clippy
       - run: mise run test
+
+  c-abi:
+    name: C ABI integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: Swatinem/rust-cache@v2
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: mise run test:integration:c-abi
 
   js:
     name: JS packages
@@ -52,6 +69,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run test:js
 
   android:
@@ -68,6 +88,9 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
       - run: mise run check
       - run: mise run check:android
@@ -87,6 +110,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
       - run: mise run publish:android-local
 
@@ -101,6 +127,9 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run package:apple
       - run: mise run npm:publish-dry-run
 
@@ -114,4 +143,7 @@ jobs:
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run test:csharp
