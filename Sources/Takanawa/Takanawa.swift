@@ -385,6 +385,9 @@ public enum DownloadPhase: UInt32, Sendable {
   case failed = 5
   case pausing = 6
   case cancelling = 7
+  case starting = 8
+  case allocating = 9
+  case verifying = 10
 }
 
 public enum TakanawaError: Error, Sendable, Equatable, CustomStringConvertible {

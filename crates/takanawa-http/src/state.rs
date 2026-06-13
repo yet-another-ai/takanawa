@@ -28,6 +28,12 @@ pub enum DownloadPhase {
     Pausing = 6,
     /// A cancellation was requested and in-flight work is winding down.
     Cancelling = 7,
+    /// A start or resume request was accepted and background work is starting.
+    Starting = 8,
+    /// The download is opening, validating, or allocating its part file.
+    Allocating = 9,
+    /// The completed part file is being verified before promotion.
+    Verifying = 10,
 }
 
 /// Point-in-time download progress.
@@ -209,9 +215,12 @@ enum CallbackThrottleAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DownloadLifecycle {
     Created,
+    Starting,
+    Allocating,
     Running,
     Pausing,
     Paused,
+    Verifying,
     Cancelling,
     Cancelled,
     Completed,
@@ -222,9 +231,12 @@ impl DownloadLifecycle {
     const fn phase(self) -> DownloadPhase {
         match self {
             Self::Created => DownloadPhase::Created,
+            Self::Starting => DownloadPhase::Starting,
+            Self::Allocating => DownloadPhase::Allocating,
             Self::Running => DownloadPhase::Running,
             Self::Pausing => DownloadPhase::Pausing,
             Self::Paused => DownloadPhase::Paused,
+            Self::Verifying => DownloadPhase::Verifying,
             Self::Cancelling => DownloadPhase::Cancelling,
             Self::Cancelled => DownloadPhase::Cancelled,
             Self::Completed => DownloadPhase::Completed,
@@ -232,26 +244,49 @@ impl DownloadLifecycle {
         }
     }
 
-    const fn start(self) -> Self {
+    const fn request_start(self) -> Self {
         match self {
             Self::Cancelling => Self::Cancelling,
-            Self::Running | Self::Pausing => self,
-            Self::Created | Self::Paused | Self::Cancelled | Self::Completed | Self::Failed => {
-                Self::Running
+            Self::Starting | Self::Allocating | Self::Running | Self::Pausing | Self::Verifying => {
+                self
             }
+            Self::Created | Self::Paused | Self::Cancelled | Self::Completed | Self::Failed => {
+                Self::Starting
+            }
+        }
+    }
+
+    const fn mark_allocating(self) -> Self {
+        match self {
+            Self::Starting | Self::Running => Self::Allocating,
+            _ => self,
+        }
+    }
+
+    const fn mark_running(self) -> Self {
+        match self {
+            Self::Starting | Self::Allocating | Self::Paused => Self::Running,
+            _ => self,
+        }
+    }
+
+    const fn mark_verifying(self) -> Self {
+        match self {
+            Self::Running => Self::Verifying,
+            _ => self,
         }
     }
 
     const fn request_pause(self) -> Self {
         match self {
-            Self::Running | Self::Pausing => Self::Pausing,
+            Self::Starting | Self::Allocating | Self::Running | Self::Pausing => Self::Pausing,
             _ => self,
         }
     }
 
     const fn mark_paused(self) -> Self {
         match self {
-            Self::Running | Self::Pausing => Self::Paused,
+            Self::Starting | Self::Allocating | Self::Running | Self::Pausing => Self::Paused,
             _ => self,
         }
     }
@@ -259,23 +294,29 @@ impl DownloadLifecycle {
     const fn request_cancel(self) -> Self {
         match self {
             Self::Created => Self::Cancelled,
-            Self::Running | Self::Pausing | Self::Paused => Self::Cancelling,
+            Self::Starting | Self::Allocating | Self::Running | Self::Pausing | Self::Paused => {
+                Self::Cancelling
+            }
             _ => self,
         }
     }
 
     const fn mark_cancelled(self) -> Self {
         match self {
-            Self::Created | Self::Running | Self::Pausing | Self::Paused | Self::Cancelling => {
-                Self::Cancelled
-            }
+            Self::Created
+            | Self::Starting
+            | Self::Allocating
+            | Self::Running
+            | Self::Pausing
+            | Self::Paused
+            | Self::Cancelling => Self::Cancelled,
             _ => self,
         }
     }
 
     const fn mark_completed(self) -> Self {
         match self {
-            Self::Running | Self::Pausing | Self::Paused => Self::Completed,
+            Self::Running | Self::Verifying => Self::Completed,
             _ => self,
         }
     }
@@ -283,9 +324,12 @@ impl DownloadLifecycle {
     const fn mark_failed(self) -> Self {
         match self {
             Self::Created
+            | Self::Starting
+            | Self::Allocating
             | Self::Running
             | Self::Pausing
             | Self::Paused
+            | Self::Verifying
             | Self::Cancelling
             | Self::Cancelled
             | Self::Completed
@@ -369,9 +413,21 @@ impl SharedState {
         }
     }
 
-    pub fn mark_running(&self) {
+    pub fn request_start(&self) {
         self.reset_speed_window();
-        self.transition(DownloadLifecycle::start);
+        self.transition(DownloadLifecycle::request_start);
+    }
+
+    pub fn mark_allocating(&self) {
+        self.transition(DownloadLifecycle::mark_allocating);
+    }
+
+    pub fn mark_running(&self) {
+        self.transition(DownloadLifecycle::mark_running);
+    }
+
+    pub fn mark_verifying(&self) {
+        self.transition(DownloadLifecycle::mark_verifying);
     }
 
     pub fn request_pause(&self) {
@@ -762,14 +818,52 @@ mod tests {
         let state = SharedState::new();
 
         assert_eq!(state.snapshot().phase, DownloadPhase::Created);
+        state.request_start();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Starting);
+        state.mark_allocating();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Allocating);
         state.mark_running();
         assert_eq!(state.snapshot().phase, DownloadPhase::Running);
         state.request_pause();
         assert_eq!(state.snapshot().phase, DownloadPhase::Pausing);
         state.mark_paused();
         assert_eq!(state.snapshot().phase, DownloadPhase::Paused);
+        state.request_start();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Starting);
         state.mark_running();
         assert_eq!(state.snapshot().phase, DownloadPhase::Running);
+        state.request_cancel();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Cancelling);
+        state.mark_cancelled();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Cancelled);
+    }
+
+    #[test]
+    fn lifecycle_reports_verifying_before_completion() {
+        let state = SharedState::new();
+
+        state.request_start();
+        state.mark_allocating();
+        state.mark_running();
+        state.mark_verifying();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Verifying);
+        state.mark_completed();
+
+        assert_eq!(state.snapshot().phase, DownloadPhase::Completed);
+    }
+
+    #[test]
+    fn lifecycle_pauses_and_cancels_during_startup_phases() {
+        let state = SharedState::new();
+
+        state.request_start();
+        state.request_pause();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Pausing);
+        state.mark_paused();
+        assert_eq!(state.snapshot().phase, DownloadPhase::Paused);
+
+        state.request_start();
+        state.mark_allocating();
         state.request_cancel();
         assert_eq!(state.snapshot().phase, DownloadPhase::Cancelling);
         state.mark_cancelled();
@@ -780,7 +874,10 @@ mod tests {
     fn lifecycle_keeps_terminal_states_stable_for_late_events() {
         let state = SharedState::new();
 
+        state.request_start();
+        state.mark_allocating();
         state.mark_running();
+        state.mark_verifying();
         state.mark_completed();
         state.request_pause();
         state.request_cancel();
@@ -797,6 +894,7 @@ mod tests {
         state.set_progress_callback(Some(Arc::new(move |snapshot| {
             callback_phases.lock().unwrap().push(snapshot.phase);
         })));
+        state.request_start();
         state.mark_running();
         state.mark_completed();
         wait_for_len(&phases, 2);

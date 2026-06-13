@@ -2,9 +2,12 @@ export type Awaitable<T> = T | Promise<T>
 
 export type DownloadPhase =
   | 'created'
+  | 'starting'
+  | 'allocating'
   | 'running'
   | 'pausing'
   | 'paused'
+  | 'verifying'
   | 'cancelling'
   | 'cancelled'
   | 'completed'
