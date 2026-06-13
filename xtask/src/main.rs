@@ -1392,15 +1392,15 @@ fn sync_cargo_workspace_versions(version: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_toml_document(path: &Path) -> Result<toml_edit::Document> {
+fn read_toml_document(path: &Path) -> Result<toml_edit::DocumentMut> {
     let content = fs::read_to_string(path)?;
     content
-        .parse::<toml_edit::Document>()
+        .parse::<toml_edit::DocumentMut>()
         .map_err(|error| format!("failed to parse {}: {error}", path.display()).into())
 }
 
 fn sync_workspace_dependency_version(
-    document: &mut toml_edit::Document,
+    document: &mut toml_edit::DocumentMut,
     dependency: &str,
     expected_path: &str,
     version: &str,
