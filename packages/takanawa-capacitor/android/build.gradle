@@ -1,16 +1,28 @@
 buildscript {
+    def takanawaKotlinVersion = rootProject.ext.has("kotlinVersion")
+        ? rootProject.ext.kotlinVersion
+        : (rootProject.ext.has("kotlin_version") ? rootProject.ext.kotlin_version : "2.2.10")
+
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:9.2.0'
+        // Needed only when this Capacitor plugin is built by AGP < 9 hosts.
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$takanawaKotlinVersion"
     }
 }
 
 apply plugin: 'com.android.library'
 
-// AGP 9 provides built-in Kotlin support for Android library modules.
+def takanawaAgpMajorVersion() {
+    return com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.').first() as int
+}
+
+// AGP 9 provides built-in Kotlin support; AGP 8 and below still need the legacy plugin.
+if (takanawaAgpMajorVersion() < 9) {
+    apply plugin: 'kotlin-android'
+}
 
 def takanawaVersion = "0.7.1"
 
