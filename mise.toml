@@ -143,7 +143,8 @@ sources = ["packages/takanawa-capacitor/android/**/*.kt", "packages/takanawa-cap
 
 [tasks."check:android"]
 description = "Run Android JNI build, Kotlin unit tests, Capacitor unit tests, and AAR verification"
-depends = ["test:android", "test:capacitor-android", "package:android-aar"]
+depends = ["install:node", "package:android"]
+run = "mise x android-sdk@9.0 -- ./gradlew -Ptakanawa.skipRustBuild=true :takanawa-android:test :takanawa-capacitor:test :takanawa-android:assembleRelease :takanawa-android:verifyReleaseAar"
 
 [tasks."build:capacitor-js"]
 description = "Build the Capacitor TypeScript package"
