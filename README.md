@@ -37,10 +37,10 @@ The release version is defined in the root `Cargo.toml` under
 that value, and `crates/takanawa-core/tests/workspace_versions.rs` verifies that
 published version references stay in sync.
 
-After changing the workspace version, run:
+To bump the release version and sync published references, run:
 
 ```sh
-mise run version:sync
+mise run version:sync <version>
 ```
 
 ## npm
@@ -59,7 +59,7 @@ The Android SDK is published as:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.6.0")
+    implementation("ai.yetanother:takanawa-android:0.6.1")
 }
 ```
 
