@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -62,11 +63,11 @@ pub struct DownloadSpeedSnapshot {
     pub content_len: u64,
     /// Bytes represented by committed chunks plus response-body bytes observed for this task.
     pub received_bytes: u64,
-    /// Bytes observed since the previous speed sample.
+    /// Bytes observed in the current speed smoothing window.
     pub interval_bytes: u64,
-    /// Milliseconds elapsed since the previous speed sample.
+    /// Milliseconds covered by the current speed smoothing window.
     pub elapsed_millis: u64,
-    /// Current transfer speed in bytes per second for this sample interval.
+    /// Current transfer speed in bytes per second for the smoothing window.
     pub bytes_per_second: f64,
     /// Current number of active I/O operations.
     pub active_io: usize,
@@ -78,6 +79,7 @@ pub type SpeedCallback = Arc<dyn Fn(DownloadSpeedSnapshot) + Send + Sync + 'stat
 const CALLBACK_EVENTS_PER_SECOND: u64 = 60;
 const CALLBACK_THROTTLE_INTERVAL: Duration =
     Duration::from_nanos(1_000_000_000 / CALLBACK_EVENTS_PER_SECOND);
+const SPEED_CALLBACK_SMOOTHING_WINDOW: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone)]
 pub(crate) struct SharedState {
@@ -123,8 +125,63 @@ struct SpeedProgress {
     interval_bytes: u64,
     elapsed_millis: u64,
     bytes_per_second: f64,
+    samples: VecDeque<SpeedSample>,
     started_at: Option<Instant>,
-    last_sample_at: Option<Instant>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SpeedSample {
+    observed_at: Instant,
+    bytes: u64,
+}
+
+impl SpeedProgress {
+    fn record_body_bytes(&mut self, bytes: u64, now: Instant) {
+        self.received_bytes = self.received_bytes.saturating_add(bytes);
+        self.started_at = Some(self.started_at.unwrap_or(now));
+        self.samples.push_back(SpeedSample {
+            observed_at: now,
+            bytes,
+        });
+        self.refresh_window(now);
+    }
+
+    fn refresh_window(&mut self, now: Instant) {
+        let cutoff = now
+            .checked_sub(SPEED_CALLBACK_SMOOTHING_WINDOW)
+            .unwrap_or(now);
+        while self
+            .samples
+            .front()
+            .is_some_and(|sample| sample.observed_at < cutoff)
+        {
+            self.samples.pop_front();
+        }
+
+        let window_bytes = self
+            .samples
+            .iter()
+            .fold(0_u64, |sum, sample| sum.saturating_add(sample.bytes));
+        let window_start = self
+            .started_at
+            .map_or(cutoff, |started_at| started_at.max(cutoff));
+        let elapsed = now.saturating_duration_since(window_start);
+        self.interval_bytes = window_bytes;
+        self.elapsed_millis = elapsed.as_millis().try_into().unwrap_or(u64::MAX);
+        self.bytes_per_second = if elapsed.is_zero() {
+            0.0
+        } else {
+            u64_to_f64(window_bytes) / elapsed.as_secs_f64()
+        };
+    }
+
+    fn reset_window(&mut self, now: Instant) {
+        self.interval_bytes = 0;
+        self.elapsed_millis = 0;
+        self.bytes_per_second = 0.0;
+        self.samples.clear();
+        self.started_at = Some(now);
+    }
 }
 
 #[derive(Debug, Default)]
@@ -258,8 +315,8 @@ impl SharedState {
                     interval_bytes: 0,
                     elapsed_millis: 0,
                     bytes_per_second: 0.0,
+                    samples: VecDeque::new(),
                     started_at: None,
-                    last_sample_at: None,
                 }),
                 active_io: AtomicUsize::new(0),
                 progress_callback: Mutex::new(None),
@@ -397,25 +454,17 @@ impl SharedState {
         if bytes == 0 {
             return;
         }
+        self.record_body_bytes_at(bytes, Instant::now());
+    }
+
+    fn record_body_bytes_at(&self, bytes: u64, now: Instant) {
         {
             let mut speed = self
                 .inner
                 .speed
                 .lock()
                 .expect("download speed mutex poisoned");
-            let now = Instant::now();
-            let last_sample_at = speed.last_sample_at.unwrap_or(now);
-            let elapsed = now.saturating_duration_since(last_sample_at);
-            speed.received_bytes = speed.received_bytes.saturating_add(bytes);
-            speed.interval_bytes = bytes;
-            speed.elapsed_millis = elapsed.as_millis().try_into().unwrap_or(u64::MAX);
-            speed.bytes_per_second = if elapsed.is_zero() {
-                0.0
-            } else {
-                u64_to_f64(bytes) / elapsed.as_secs_f64()
-            };
-            speed.started_at = Some(speed.started_at.unwrap_or(now));
-            speed.last_sample_at = Some(now);
+            speed.record_body_bytes(bytes, now);
         }
         self.notify_speed();
     }
@@ -452,6 +501,10 @@ impl SharedState {
 
     #[must_use]
     pub fn speed_snapshot(&self) -> DownloadSpeedSnapshot {
+        self.speed_snapshot_at(Instant::now())
+    }
+
+    fn speed_snapshot_at(&self, now: Instant) -> DownloadSpeedSnapshot {
         let phase = self
             .inner
             .progress
@@ -459,12 +512,15 @@ impl SharedState {
             .expect("download state mutex poisoned")
             .lifecycle
             .phase();
-        let speed = self
-            .inner
-            .speed
-            .lock()
-            .expect("download speed mutex poisoned")
-            .clone();
+        let speed = {
+            let mut speed = self
+                .inner
+                .speed
+                .lock()
+                .expect("download speed mutex poisoned");
+            speed.refresh_window(now);
+            speed.clone()
+        };
         DownloadSpeedSnapshot {
             phase,
             content_len: speed.content_len,
@@ -664,11 +720,7 @@ impl SharedState {
             .speed
             .lock()
             .expect("download speed mutex poisoned");
-        speed.interval_bytes = 0;
-        speed.elapsed_millis = 0;
-        speed.bytes_per_second = 0.0;
-        speed.started_at = Some(now);
-        speed.last_sample_at = Some(now);
+        speed.reset_window(now);
     }
 
     fn update_speed_metadata(&self, content_len: u64, completed_bytes: u64) {
@@ -775,6 +827,29 @@ mod tests {
         state.set_speed_callback(None);
         state.record_body_bytes(20);
 
-        assert_eq!(*samples.lock().unwrap(), vec![(0, 0), (25, 15)]);
+        assert_eq!(*samples.lock().unwrap(), vec![(0, 0), (25, 25)]);
+    }
+
+    #[test]
+    fn speed_snapshot_smooths_samples_over_last_second() {
+        let state = SharedState::new();
+        let started_at = Instant::now();
+
+        state.record_body_bytes_at(100, started_at);
+        state.record_body_bytes_at(100, started_at + Duration::from_millis(500));
+        let snapshot = state.speed_snapshot_at(started_at + Duration::from_millis(500));
+
+        assert_eq!(snapshot.received_bytes, 200);
+        assert_eq!(snapshot.interval_bytes, 200);
+        assert_eq!(snapshot.elapsed_millis, 500);
+        assert!((snapshot.bytes_per_second - 400.0).abs() < f64::EPSILON);
+
+        state.record_body_bytes_at(50, started_at + Duration::from_millis(1_200));
+        let snapshot = state.speed_snapshot_at(started_at + Duration::from_millis(1_200));
+
+        assert_eq!(snapshot.received_bytes, 250);
+        assert_eq!(snapshot.interval_bytes, 150);
+        assert_eq!(snapshot.elapsed_millis, 1_000);
+        assert!((snapshot.bytes_per_second - 150.0).abs() < f64::EPSILON);
     }
 }
