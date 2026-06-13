@@ -142,7 +142,7 @@ pub struct TknwDownloadSnapshot {
     pub abi_version: u32,
     /// Must be at least `size_of::<TknwDownloadSnapshot>()` on input.
     pub struct_size: usize,
-    /// Current phase as a `DownloadPhase` numeric value.
+    /// Current phase as a `TknwDownloadPhase` numeric value.
     pub phase: u32,
     /// Total content length in bytes.
     pub content_len: u64,
@@ -166,7 +166,7 @@ pub struct TknwDownloadSpeedSnapshot {
     pub abi_version: u32,
     /// Must be at least `size_of::<TknwDownloadSpeedSnapshot>()` on input.
     pub struct_size: usize,
-    /// Current phase as a `DownloadPhase` numeric value.
+    /// Current phase as a `TknwDownloadPhase` numeric value.
     pub phase: u32,
     /// Total content length in bytes.
     pub content_len: u64,
@@ -1630,6 +1630,13 @@ mod tests {
             TknwStatus::NullPointer
         );
         assert_eq!(tknw_global_shutdown(), TknwStatus::Ok);
+    }
+
+    #[test]
+    fn maps_new_download_phase_values() {
+        assert_eq!(phase_to_u32(DownloadPhase::Starting), 8);
+        assert_eq!(phase_to_u32(DownloadPhase::Allocating), 9);
+        assert_eq!(phase_to_u32(DownloadPhase::Verifying), 10);
     }
 
     #[test]

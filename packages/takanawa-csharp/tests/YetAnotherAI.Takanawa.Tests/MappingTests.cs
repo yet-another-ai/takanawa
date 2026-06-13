@@ -17,6 +17,12 @@ namespace YetAnotherAI.Takanawa.Tests
         }
 
         [Fact]
+        public void NewPhaseValuesMapToNamedCases()
+        {
+            Assert.Equal(DownloadPhase.Verifying, NativeConversions.ToDownloadPhase(10));
+        }
+
+        [Fact]
         public void ClosedHandleThrowsAlignedException()
         {
             using var download = new TakanawaDownload(new TakanawaDownloadHandle(System.IntPtr.Zero));

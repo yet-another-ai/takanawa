@@ -34,12 +34,18 @@ internal extension DownloadPhase {
     switch self {
     case .created:
       return "created"
+    case .starting:
+      return "starting"
+    case .allocating:
+      return "allocating"
     case .running:
       return "running"
     case .pausing:
       return "pausing"
     case .paused:
       return "paused"
+    case .verifying:
+      return "verifying"
     case .cancelling:
       return "cancelling"
     case .cancelled:

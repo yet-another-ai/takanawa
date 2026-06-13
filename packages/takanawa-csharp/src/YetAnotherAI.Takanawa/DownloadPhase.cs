@@ -10,5 +10,8 @@ namespace YetAnotherAI.Takanawa
         Failed = 5,
         Pausing = 6,
         Cancelling = 7,
+        Starting = 8,
+        Allocating = 9,
+        Verifying = 10,
     }
 }

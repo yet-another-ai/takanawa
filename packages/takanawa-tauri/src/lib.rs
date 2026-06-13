@@ -483,9 +483,12 @@ impl From<DownloadSpeedSnapshot> for NativeDownloadSpeedSnapshot {
 fn phase_to_string(phase: DownloadPhase) -> &'static str {
     match phase {
         DownloadPhase::Created => "created",
+        DownloadPhase::Starting => "starting",
+        DownloadPhase::Allocating => "allocating",
         DownloadPhase::Running => "running",
         DownloadPhase::Pausing => "pausing",
         DownloadPhase::Paused => "paused",
+        DownloadPhase::Verifying => "verifying",
         DownloadPhase::Cancelling => "cancelling",
         DownloadPhase::Cancelled => "cancelled",
         DownloadPhase::Completed => "completed",
@@ -515,7 +518,7 @@ mod tests {
     #[test]
     fn maps_snapshot_to_camel_case_string_payload() {
         let snapshot = NativeDownloadSnapshot::from(DownloadSnapshot {
-            phase: DownloadPhase::Pausing,
+            phase: DownloadPhase::Allocating,
             content_len: 9_007_199_254_740_993,
             downloaded_bytes: 10,
             chunk_size: 5,
@@ -525,7 +528,7 @@ mod tests {
             last_error: Some("waiting".to_string()),
         });
 
-        assert_eq!(snapshot.phase, "pausing");
+        assert_eq!(snapshot.phase, "allocating");
         assert_eq!(snapshot.content_len, "9007199254740993");
         assert_eq!(snapshot.downloaded_bytes, "10");
         assert_eq!(snapshot.last_error.as_deref(), Some("waiting"));

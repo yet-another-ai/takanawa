@@ -63,7 +63,13 @@ namespace YetAnotherAI.Takanawa
 
         internal static DownloadPhase ToDownloadPhase(uint value)
         {
-            return value <= (uint)DownloadPhase.Cancelling ? (DownloadPhase)value : DownloadPhase.Failed;
+            if (value > int.MaxValue)
+            {
+                return DownloadPhase.Failed;
+            }
+
+            var phase = (DownloadPhase)(int)value;
+            return Enum.IsDefined(typeof(DownloadPhase), phase) ? phase : DownloadPhase.Failed;
         }
 
         internal static TakanawaStatus NormalizeStatus(TakanawaStatus status)

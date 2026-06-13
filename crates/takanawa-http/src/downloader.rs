@@ -284,7 +284,7 @@ impl DownloadHandle {
         self.control.pause.store(false, Ordering::Relaxed);
         self.control.cancel.store(false, Ordering::Relaxed);
         self.state.clear_error();
-        self.state.mark_running();
+        self.state.request_start();
 
         let engine = self.engine.clone();
         let config = self.config.clone();
@@ -425,23 +425,34 @@ async fn run_download(
     let config = config.normalized();
     let engine = engine.with_timeout(config.timeout)?;
     let bandwidth = Arc::new(BandwidthLimiter::new(config.bytes_per_second_limit));
-    state.mark_running();
+    state.request_start();
+    if complete_startup_control_request(&state, &control)? {
+        return Ok(());
+    }
     let remote = probe_with_retry(&engine, &config, &state, &control).await?;
+    if complete_startup_control_request(&state, &control)? {
+        return Ok(());
+    }
     let chunk_plan = ChunkPlan::new(remote.content_len, config.chunk_size)?;
     let target_path = config.target_path.clone();
     let url = config.url.clone();
     let hash = config.hash;
     let chunk_size = config.chunk_size;
 
+    state.mark_allocating();
     let part = tokio::task::spawn_blocking(move || {
         PartFile::open_or_create(&target_path, &url, &remote, chunk_size, hash)
     })
     .await
     .map_err(|err| TakanawaError::Ffi(format!("part open task failed: {err}")))??;
     state.update_from_metadata(part.metadata());
+    if complete_startup_control_request(&state, &control)? {
+        return Ok(());
+    }
+    state.mark_running();
 
     if part.metadata().all_complete() {
-        finalize_part(part, &config, &state).await?;
+        finalize_part(part, &config, &state, &control).await?;
         return Ok(());
     }
 
@@ -543,12 +554,24 @@ async fn run_download(
 
     let part = finish_part_writer(writer_tx, writer_join).await?;
 
-    if control.pause.load(Ordering::Relaxed) && !part.metadata().all_complete() {
+    if control.pause.load(Ordering::Relaxed) {
         state.mark_paused();
         return Ok(());
     }
 
-    finalize_part(part, &config, &state).await
+    finalize_part(part, &config, &state, &control).await
+}
+
+fn complete_startup_control_request(state: &SharedState, control: &Control) -> Result<bool> {
+    if control.cancel.load(Ordering::Relaxed) {
+        state.mark_cancelled();
+        return Err(TakanawaError::Cancelled);
+    }
+    if control.pause.load(Ordering::Relaxed) {
+        state.mark_paused();
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 enum ChunkTaskResult {
@@ -634,7 +657,21 @@ async fn finish_part_writer_after_error(
     }
 }
 
-async fn finalize_part(part: PartFile, config: &DownloadConfig, state: &SharedState) -> Result<()> {
+async fn finalize_part(
+    part: PartFile,
+    config: &DownloadConfig,
+    state: &SharedState,
+    control: &Control,
+) -> Result<()> {
+    if control.cancel.load(Ordering::Relaxed) {
+        state.mark_cancelled();
+        return Err(TakanawaError::Cancelled);
+    }
+    if control.pause.load(Ordering::Relaxed) {
+        state.mark_paused();
+        return Ok(());
+    }
+    state.mark_verifying();
     let target_path = config.target_path.clone();
     tokio::task::spawn_blocking(move || part.finalize(&target_path))
         .await
@@ -1100,6 +1137,39 @@ mod tests {
 
         assert_eq!(snapshot.phase, DownloadPhase::Completed);
         assert_eq!(std::fs::read(target).unwrap(), data.as_slice());
+    }
+
+    #[test]
+    fn start_reports_starting_before_async_probe_completes() {
+        let data = Arc::new(b"abcdefghij".to_vec());
+        let addr = spawn_delayed_chunk_server(Arc::clone(&data), Duration::from_millis(200));
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("out.bin");
+        let engine = DownloadEngine::new(DEFAULT_MAX_IO).unwrap();
+        let runtime = Runtime::new().unwrap();
+        let download = DownloadHandle::new(
+            engine,
+            DownloadConfig {
+                url: format!("http://{addr}/file"),
+                target_path: target,
+                chunk_size: 5,
+                parallelism: 1,
+                max_parallel_chunks: 0,
+                retry: RetryConfig::default(),
+                timeout: TimeoutConfig::default(),
+                bytes_per_second_limit: 0,
+                hash: HashConfig::None,
+            },
+        );
+
+        download.start_on(&runtime).unwrap();
+        assert_eq!(download.snapshot().phase, DownloadPhase::Starting);
+
+        download.cancel().unwrap();
+        assert_eq!(
+            wait_for_phase(&download, DownloadPhase::Cancelled).phase,
+            DownloadPhase::Cancelled
+        );
     }
 
     #[tokio::test]

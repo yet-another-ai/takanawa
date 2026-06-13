@@ -336,9 +336,12 @@ fn hash_label(kind: HashKind) -> &'static str {
 fn phase_to_string(phase: DownloadPhase) -> String {
     match phase {
         DownloadPhase::Created => "created",
+        DownloadPhase::Starting => "starting",
+        DownloadPhase::Allocating => "allocating",
         DownloadPhase::Running => "running",
         DownloadPhase::Pausing => "pausing",
         DownloadPhase::Paused => "paused",
+        DownloadPhase::Verifying => "verifying",
         DownloadPhase::Cancelling => "cancelling",
         DownloadPhase::Cancelled => "cancelled",
         DownloadPhase::Completed => "completed",
