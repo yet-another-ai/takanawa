@@ -24,17 +24,35 @@ url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0
 version = "24.16.0"
 backend = "core:node"
 
+[tools.node."platforms.linux-x64"]
+checksum = "sha256:2faf6a387e9b62b888e21c54f01249fb27537ffecf1842f29f4c919d0a59a0ff"
+url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.gz"
+
 [tools.node."platforms.macos-arm64"]
 checksum = "sha256:39189dab4eeb15706c424af0ac08a3044c9e48f7db12a7d77f6b7aafc7dd5df6"
 url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz"
+
+[tools.node."platforms.windows-x64"]
+checksum = "sha256:edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"
+url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"
 
 [[tools.pnpm]]
 version = "11.6.0"
 backend = "aqua:pnpm/pnpm"
 
+[tools.pnpm."platforms.linux-x64"]
+checksum = "sha256:74d64c1646385fb21691f32f0ab6aca1a9f5c829ba54d3cda3a24838a228e68c"
+url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-linux-x64.tar.gz"
+provenance = "github-attestations"
+
 [tools.pnpm."platforms.macos-arm64"]
 checksum = "sha256:87c901635a14481fb30566a3749041134ffd4317bc6fe866c345b69fdf9b6b85"
 url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-darwin-arm64.tar.gz"
+provenance = "github-attestations"
+
+[tools.pnpm."platforms.windows-x64"]
+checksum = "sha256:91c753435542b04859c689304fae0dd64eba6b40937cfa426a48485b712e4e9c"
+url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-win32-x64.zip"
 provenance = "github-attestations"
 
 [[tools.rust]]
