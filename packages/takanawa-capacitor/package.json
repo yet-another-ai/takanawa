@@ -1,6 +1,6 @@
 {
   "name": "takanawa-capacitor",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Capacitor bindings for Takanawa downloads on Android and iOS.",
   "license": "MIT",
   "repository": {

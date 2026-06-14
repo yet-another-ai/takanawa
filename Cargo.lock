@@ -3148,7 +3148,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-cli"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "hex",
  "takanawa-core",
@@ -3158,7 +3158,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-core"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "crc32fast",
  "fs2",
@@ -3171,7 +3171,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-ffi"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "jni 0.21.1",
  "takanawa-core",
@@ -3182,7 +3182,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-http"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "bytes",
  "futures-util",
@@ -3197,7 +3197,7 @@ dependencies = [
 
 [[package]]
 name = "takanawa-node"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "napi",
  "napi-build",
@@ -3339,7 +3339,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-takanawa"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -4770,7 +4770,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "xtask"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "serde_json",
  "toml_edit 0.25.12+spec-1.1.0",
