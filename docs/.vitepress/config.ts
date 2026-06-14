@@ -49,6 +49,7 @@ export default defineConfig({
           { text: 'Node and Electron', link: '/guide/node' },
           { text: 'Capacitor', link: '/guide/capacitor' },
           { text: 'Tauri', link: '/guide/tauri' },
+          { text: 'Godot GDExtension', link: '/guide/gdextension' },
           { text: 'Android', link: '/guide/android' },
           { text: 'Apple and SwiftPM', link: '/guide/apple' },
           { text: 'C# and NuGet', link: '/guide/csharp' },

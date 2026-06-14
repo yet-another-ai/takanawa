@@ -5,6 +5,7 @@ members = [
     "crates/takanawa-ffi",
     "crates/takanawa-cli",
     "packages/takanawa-node",
+    "packages/takanawa-gdextension",
     "packages/takanawa-tauri",
     "xtask",
 ]
@@ -27,6 +28,7 @@ bytes = "1.11"
 crc32fast = "1.5"
 fs2 = "0.4"
 futures-util = "0.3"
+godot = { version = "0.4.5", features = ["api-4-5"] }
 hex = "0.4"
 napi = { version = "3.9.1", default-features = false, features = ["napi8", "tokio_rt"] }
 napi-derive = "3.5.6"

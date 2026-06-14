@@ -27,6 +27,26 @@ TypeScript facade, so their public option names, listener handles, hash forms,
 phase strings, and snapshot fields stay aligned. That shared facade is bundled
 into each target package and is not published as a standalone npm package.
 
+## Godot GDExtension
+
+Godot 4 projects that use GDScript can install the `takanawa-gdextension.zip`
+release artifact. It registers a `TakanawaDownload` node with
+`configure/start/pause/cancel` methods, polling helpers, and `progress`,
+`speed`, `completed`, `failed`, and `cancelled` signals.
+
+```gdscript
+var download := TakanawaDownload.new()
+add_child(download)
+download.progress.connect(func(snapshot: Dictionary) -> void:
+    print(snapshot["downloaded_bytes"])
+)
+download.configure({
+    "url": "https://example.com/file.bin",
+    "target_path": "user://file.bin",
+})
+download.start()
+```
+
 ## Hash Verification
 
 Download configurations can request final file verification with SHA-1,
