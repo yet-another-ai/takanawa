@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - name: Install Linux system dependencies
         run: |
@@ -54,6 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -85,6 +87,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -109,6 +112,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -139,6 +143,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -167,6 +172,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -232,6 +238,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: actions/download-artifact@v4
         with:
@@ -260,6 +267,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
         with:
+          version: 2026.6.6
           experimental: true
       - uses: actions/download-artifact@v4
         with:
