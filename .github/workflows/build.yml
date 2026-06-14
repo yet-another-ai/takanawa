@@ -64,6 +64,7 @@ jobs:
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
       - run: mise run package:gdextension-desktop
+        if: matrix.target != 'i686-pc-windows-msvc'
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
 

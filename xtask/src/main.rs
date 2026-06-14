@@ -547,6 +547,13 @@ fn build_gdextension_desktop() -> Result<()> {
 fn build_gdextension_windows() -> Result<()> {
     let target = env::var("TAKANAWA_WINDOWS_TARGET")
         .map_err(|_| "TAKANAWA_WINDOWS_TARGET is required for build-gdextension-windows")?;
+    if target == "i686-pc-windows-msvc" {
+        return Err(concat!(
+            "i686-pc-windows-msvc is not supported for Godot GDExtension builds ",
+            "because godot-rust 0.4.x uses 64-bit prebuilt API data"
+        )
+        .into());
+    }
     run_command(repo_command("rustup").args(["target", "add", target.as_str()]))?;
     run_command(repo_command("cargo").args([
         "build",
