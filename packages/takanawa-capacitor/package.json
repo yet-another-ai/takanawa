@@ -21,12 +21,7 @@
   },
   "files": [
     "README.md",
-    "dist/index.cjs",
-    "dist/index.cjs.map",
-    "dist/index.d.ts",
-    "dist/index.mjs",
-    "dist/index.mjs.map",
-    "dist/web-*",
+    "dist",
     "android/build.gradle",
     "android/src/main",
     "Package.swift",
