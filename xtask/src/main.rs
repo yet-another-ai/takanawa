@@ -11,6 +11,19 @@ use std::{env, thread, time};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 const TEST_HTTP_PAYLOAD: &[u8] = b"takanawa integration fixture payload\n";
+const IOS_XCFRAMEWORK_INFO_PLIST: &str = "Takanawa.xcframework/Info.plist";
+const IOS_DEVICE_XCFRAMEWORK_LIBRARY: &str = "Takanawa.xcframework/ios-arm64/libtakanawa_ffi.a";
+const IOS_SIMULATOR_XCFRAMEWORK_LIBRARY: &str =
+    "Takanawa.xcframework/ios-arm64_x86_64-simulator/libtakanawa_ffi.a";
+const MACOS_XCFRAMEWORK_LIBRARY: &str = "Takanawa.xcframework/macos-arm64_x86_64/libtakanawa_ffi.a";
+const NUGET_IOS_XCFRAMEWORK_INFO_PLIST: &str =
+    "runtimes/ios/native/Takanawa.xcframework/Info.plist";
+const NUGET_IOS_DEVICE_XCFRAMEWORK_LIBRARY: &str =
+    "runtimes/ios/native/Takanawa.xcframework/ios-arm64/libtakanawa_ffi.a";
+const NUGET_IOS_SIMULATOR_XCFRAMEWORK_LIBRARY: &str =
+    "runtimes/ios/native/Takanawa.xcframework/ios-arm64_x86_64-simulator/libtakanawa_ffi.a";
+const NUGET_MACOS_XCFRAMEWORK_LIBRARY: &str =
+    "runtimes/ios/native/Takanawa.xcframework/macos-arm64_x86_64/libtakanawa_ffi.a";
 
 fn main() {
     if let Err(error) = run_main() {
@@ -426,7 +439,56 @@ fn build_apple_xcframework() -> Result<()> {
         "target/apple/Takanawa.xcframework",
     ]))?;
 
+    verify_apple_xcframework(&repo_root().join("target/apple/Takanawa.xcframework"))?;
     package_swiftpm()
+}
+
+fn verify_apple_xcframework(xcframework: &Path) -> Result<()> {
+    for relative in [
+        IOS_XCFRAMEWORK_INFO_PLIST,
+        IOS_DEVICE_XCFRAMEWORK_LIBRARY,
+        IOS_SIMULATOR_XCFRAMEWORK_LIBRARY,
+        MACOS_XCFRAMEWORK_LIBRARY,
+    ] {
+        let relative_path = relative
+            .strip_prefix("Takanawa.xcframework/")
+            .unwrap_or(relative);
+        let path = xcframework.join(relative_path);
+        if !path.is_file() {
+            return Err(format!(
+                "{} is missing expected XCFramework entry {relative_path}",
+                xcframework.display()
+            )
+            .into());
+        }
+    }
+
+    let info_plist = fs::read_to_string(
+        xcframework.join(
+            IOS_XCFRAMEWORK_INFO_PLIST
+                .strip_prefix("Takanawa.xcframework/")
+                .expect("Info.plist path should be relative to Takanawa.xcframework"),
+        ),
+    )?;
+    for required in [
+        "ios-arm64",
+        "ios-arm64_x86_64-simulator",
+        "macos-arm64_x86_64",
+        "SupportedArchitectures",
+        "<string>arm64</string>",
+        "<string>x86_64</string>",
+        "<string>simulator</string>",
+    ] {
+        if !info_plist.contains(required) {
+            return Err(format!(
+                "{} is missing expected XCFramework metadata {required}",
+                xcframework.display()
+            )
+            .into());
+        }
+    }
+
+    Ok(())
 }
 
 fn deployment_env(mut command: Command) -> Command {
@@ -736,6 +798,7 @@ fn verify_csharp_package(package_path: &Path) -> Result<()> {
             .into());
         }
     }
+    verify_csharp_package_ios_xcframework(package_path)?;
 
     Ok(())
 }
@@ -756,8 +819,39 @@ fn required_csharp_package_entries() -> &'static [&'static str] {
         "runtimes/android-arm/native/libtakanawa_ffi.so",
         "runtimes/android-x86/native/libtakanawa_ffi.so",
         "runtimes/android-x64/native/libtakanawa_ffi.so",
-        "runtimes/ios/native/Takanawa.xcframework/Info.plist",
+        NUGET_IOS_XCFRAMEWORK_INFO_PLIST,
+        NUGET_IOS_DEVICE_XCFRAMEWORK_LIBRARY,
+        NUGET_IOS_SIMULATOR_XCFRAMEWORK_LIBRARY,
+        NUGET_MACOS_XCFRAMEWORK_LIBRARY,
     ]
+}
+
+fn verify_csharp_package_ios_xcframework(package_path: &Path) -> Result<()> {
+    let info_plist = output_text(
+        repo_command("unzip")
+            .arg("-p")
+            .arg(package_path)
+            .arg(NUGET_IOS_XCFRAMEWORK_INFO_PLIST),
+    )?;
+    for required in [
+        "ios-arm64",
+        "ios-arm64_x86_64-simulator",
+        "macos-arm64_x86_64",
+        "SupportedArchitectures",
+        "<string>arm64</string>",
+        "<string>x86_64</string>",
+        "<string>simulator</string>",
+    ] {
+        if !info_plist.contains(required) {
+            return Err(format!(
+                "{} is missing required iOS XCFramework metadata {required}",
+                package_path.display()
+            )
+            .into());
+        }
+    }
+
+    Ok(())
 }
 
 fn prepare_csharp_nuget_assets() -> Result<()> {
@@ -1029,6 +1123,7 @@ fn prepare_capacitor_npm_package() -> Result<()> {
     if !package_xcframework.is_dir() {
         return Err("ios/Takanawa.xcframework was not staged for takanawa-capacitor".into());
     }
+    verify_apple_xcframework(&package_xcframework)?;
 
     copy_dir(&root.join("Sources/Takanawa"), &package_takanawa_source)?;
 

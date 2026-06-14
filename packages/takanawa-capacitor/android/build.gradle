@@ -66,6 +66,9 @@ tasks.register("verifyReleaseAar") {
     description = "Verify the Capacitor Android AAR contains compiled plugin classes."
     group = "verification"
     dependsOn("bundleReleaseAar")
+    if (findProject(":takanawa-android") != null) {
+        dependsOn(":takanawa-android:verifyReleaseAar")
+    }
 
     def aar = layout.buildDirectory.file("outputs/aar/takanawa-capacitor-release.aar")
     inputs.file(aar)
