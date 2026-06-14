@@ -26,8 +26,8 @@ jobs:
     environment: cargo-registry
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
@@ -37,7 +37,7 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: Swatinem/rust-cache@v2
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -52,13 +52,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -84,13 +84,13 @@ jobs:
           - target: aarch64-pc-windows-msvc
             artifact: takanawa-windows-aarch64
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -109,13 +109,13 @@ jobs:
     runs-on: macos-latest
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -140,13 +140,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -169,13 +169,13 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     environment: maven-central
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
       - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -214,12 +214,12 @@ jobs:
       - publish-nuget
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v4
         with:
           path: target/release-artifacts
           merge-multiple: true
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -235,8 +235,8 @@ jobs:
     environment: npm-registry
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
@@ -244,7 +244,7 @@ jobs:
         with:
           name: Takanawa.xcframework-swiftpm
           path: target/swiftpm
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -264,8 +264,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.6
           experimental: true
@@ -273,7 +273,7 @@ jobs:
         with:
           path: target/release-artifacts
           merge-multiple: true
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
