@@ -16,9 +16,17 @@ backend = "core:dotnet"
 version = "temurin-21.0.11+10.0.LTS"
 backend = "core:java"
 
+[tools.java."platforms.linux-x64"]
+checksum = "sha256:4b2220e232a97997b436ca6ab15cbf70171ecff52958a46159dfa5a8c44ca4de"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_linux_hotspot_21.0.11_10.tar.gz"
+
 [tools.java."platforms.macos-arm64"]
 checksum = "sha256:6ebcf221c9b41507b14c098e93c6ead6440b8d9bd154f8ec666c4c73abbdb201"
 url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.11_10.tar.gz"
+
+[tools.java."platforms.windows-x64"]
+checksum = "sha256:d3625e7cadf23787ea540229544b6e2ab494b3b54da1801879e583e1dfee0a64"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_windows_hotspot_21.0.11_10.zip"
 
 [[tools.node]]
 version = "24.16.0"
@@ -56,7 +64,7 @@ url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-win32-x64.zip
 provenance = "github-attestations"
 
 [[tools.rust]]
-version = "1.96.0"
+version = "stable"
 backend = "core:rust"
 
 [tools.rust.options]
