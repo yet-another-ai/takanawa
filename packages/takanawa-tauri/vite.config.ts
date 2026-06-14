@@ -22,7 +22,7 @@ export default defineConfig({
       formats: ['es', 'cjs'],
       fileName: (format, entryName) => `${entryName}.${extensionByFormat[format as 'es' | 'cjs']}`
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: ['@tauri-apps/api/core', '@tauri-apps/api/event']
     },
     sourcemap: true

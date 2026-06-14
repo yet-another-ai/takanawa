@@ -14,7 +14,7 @@ export default defineConfig({
       formats: ['es', 'cjs'],
       fileName: (format) => (format === 'es' ? 'index.mjs' : 'index.cjs')
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: ['node:module']
     },
     sourcemap: true
