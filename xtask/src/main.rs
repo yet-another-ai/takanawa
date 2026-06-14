@@ -985,11 +985,7 @@ fn npm_publish(mode: &str) -> Result<()> {
         let package_dir = format!("./{}", package.dir);
         if mode == "dry-run" {
             println!("::group::npm pack --dry-run {package_dir}");
-            run_command(npm_command(&npm_cache).args([
-                "pack",
-                package_dir.as_str(),
-                "--dry-run",
-            ]))?;
+            run_command(npm_command(&npm_cache).args(["pack", package_dir.as_str(), "--dry-run"]))?;
             println!("::endgroup::");
             continue;
         }
