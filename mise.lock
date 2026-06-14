@@ -64,7 +64,7 @@ url = "https://github.com/pnpm/pnpm/releases/download/v11.6.0/pnpm-win32-x64.zip
 provenance = "github-attestations"
 
 [[tools.rust]]
-version = "stable"
+version = "1.96.0"
 backend = "core:rust"
 
 [tools.rust.options]
