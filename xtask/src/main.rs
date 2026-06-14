@@ -569,9 +569,7 @@ fn build_gdextension_android() -> Result<()> {
         "target",
         "add",
         "aarch64-linux-android",
-        "armv7-linux-androideabi",
         "x86_64-linux-android",
-        "i686-linux-android",
     ]))?;
     remove_dir_if_exists("target/gdextension/android")?;
     run_command(repo_command("cargo").args([
@@ -579,11 +577,7 @@ fn build_gdextension_android() -> Result<()> {
         "-t",
         "arm64-v8a",
         "-t",
-        "armeabi-v7a",
-        "-t",
         "x86_64",
-        "-t",
-        "x86",
         "--platform",
         "23",
         "-o",

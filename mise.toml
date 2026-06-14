@@ -159,7 +159,7 @@ sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.tom
 outputs = ["target/android/jniLibs"]
 
 [tasks."package:gdextension-android"]
-description = "Build and stage Godot GDExtension Android libraries for all supported ABIs"
+description = "Build and stage Godot GDExtension Android libraries for supported 64-bit ABIs"
 depends = ["android:sdk"]
 run = "mise x android-sdk@9.0 -- cargo run -p xtask -- build-gdextension-android"
 sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "packages/takanawa-gdextension/**/*"]
