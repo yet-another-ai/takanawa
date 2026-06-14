@@ -24,7 +24,7 @@ if (takanawaAgpMajorVersion() < 9) {
     apply plugin: 'kotlin-android'
 }
 
-def takanawaVersion = "0.7.2"
+def takanawaVersion = "0.7.3"
 
 android {
     namespace "ai.yetanother.takanawa.capacitor"
@@ -41,6 +41,12 @@ android {
     }
     testOptions {
         unitTests.includeAndroidResources = false
+    }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
