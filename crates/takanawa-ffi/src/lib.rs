@@ -922,7 +922,10 @@ mod android_jni {
     use jni::JNIEnv;
     use jni::JavaVM;
     use jni::errors::Error as JniError;
-    use jni::objects::{GlobalRef, JByteArray, JClass, JLongArray, JObject, JString, JValue};
+    use jni::objects::{
+        GlobalRef, JByteArray, JClass, JLongArray, JMethodID, JObject, JString, JValue,
+    };
+    use jni::signature::{Primitive, ReturnType};
     use jni::sys::{jbyte, jint, jlong, jstring};
 
     use super::{
@@ -937,11 +940,15 @@ mod android_jni {
     struct AndroidProgressCallback {
         java_vm: JavaVM,
         listener: GlobalRef,
+        _listener_class: GlobalRef,
+        method_id: JMethodID,
     }
 
     struct AndroidSpeedCallback {
         java_vm: JavaVM,
         listener: GlobalRef,
+        _listener_class: GlobalRef,
+        method_id: JMethodID,
     }
 
     #[unsafe(no_mangle)]
@@ -1145,7 +1152,7 @@ mod android_jni {
     pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadSetProgressCallback<
         'local,
     >(
-        env: JNIEnv<'local>,
+        mut env: JNIEnv<'local>,
         _class: JClass<'local>,
         handle: jlong,
         listener: JObject<'local>,
@@ -1163,10 +1170,30 @@ mod android_jni {
             let Ok(java_vm) = env.get_java_vm() else {
                 return Ok(status_code(TknwStatus::Internal));
             };
+            let Ok(listener_class) =
+                env.find_class("ai/yetanother/takanawa/DownloadProgressListener")
+            else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(method_id) = env.get_method_id(
+                &listener_class,
+                "onProgress",
+                "(Lai/yetanother/takanawa/DownloadSnapshot;)V",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(listener_class) = env.new_global_ref(&listener_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
             let Ok(listener) = env.new_global_ref(listener) else {
                 return Ok(status_code(TknwStatus::Internal));
             };
-            let callback = Box::new(AndroidProgressCallback { java_vm, listener });
+            let callback = Box::new(AndroidProgressCallback {
+                java_vm,
+                listener,
+                _listener_class: listener_class,
+                method_id,
+            });
             let context = Box::into_raw(callback).cast::<c_void>();
             let status = tknw_download_set_progress_callback(
                 download_mut(handle),
@@ -1186,7 +1213,7 @@ mod android_jni {
 
     #[unsafe(no_mangle)]
     pub extern "C" fn Java_ai_yetanother_takanawa_NativeBridge_downloadSetSpeedCallback<'local>(
-        env: JNIEnv<'local>,
+        mut env: JNIEnv<'local>,
         _class: JClass<'local>,
         handle: jlong,
         listener: JObject<'local>,
@@ -1204,10 +1231,29 @@ mod android_jni {
             let Ok(java_vm) = env.get_java_vm() else {
                 return Ok(status_code(TknwStatus::Internal));
             };
+            let Ok(listener_class) = env.find_class("ai/yetanother/takanawa/DownloadSpeedListener")
+            else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(method_id) = env.get_method_id(
+                &listener_class,
+                "onSpeed",
+                "(Lai/yetanother/takanawa/DownloadSpeedSnapshot;)V",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(listener_class) = env.new_global_ref(&listener_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
             let Ok(listener) = env.new_global_ref(listener) else {
                 return Ok(status_code(TknwStatus::Internal));
             };
-            let callback = Box::new(AndroidSpeedCallback { java_vm, listener });
+            let callback = Box::new(AndroidSpeedCallback {
+                java_vm,
+                listener,
+                _listener_class: listener_class,
+                method_id,
+            });
             let context = Box::into_raw(callback).cast::<c_void>();
             let status = tknw_download_set_speed_callback(
                 download_mut(handle),
@@ -1408,14 +1454,18 @@ mod android_jni {
             clear_exception(&mut env);
             return;
         };
-        if env
-            .call_method(
+        let args = [JValue::Object(&snapshot_object).as_jni()];
+        // SAFETY: method_id is resolved from DownloadProgressListener.onProgress with the
+        // exact signature used here, and _listener_class keeps that class loaded.
+        if unsafe {
+            env.call_method_unchecked(
                 callback.listener.as_obj(),
-                "onProgress",
-                "(Lai/yetanother/takanawa/DownloadSnapshot;)V",
-                &[JValue::Object(&snapshot_object)],
+                callback.method_id,
+                ReturnType::Primitive(Primitive::Void),
+                &args,
             )
-            .is_err()
+        }
+        .is_err()
         {
             clear_exception(&mut env);
         }
@@ -1484,14 +1534,18 @@ mod android_jni {
             clear_exception(&mut env);
             return;
         };
-        if env
-            .call_method(
+        let args = [JValue::Object(&speed_object).as_jni()];
+        // SAFETY: method_id is resolved from DownloadSpeedListener.onSpeed with the
+        // exact signature used here, and _listener_class keeps that class loaded.
+        if unsafe {
+            env.call_method_unchecked(
                 callback.listener.as_obj(),
-                "onSpeed",
-                "(Lai/yetanother/takanawa/DownloadSpeedSnapshot;)V",
-                &[JValue::Object(&speed_object)],
+                callback.method_id,
+                ReturnType::Primitive(Primitive::Void),
+                &args,
             )
-            .is_err()
+        }
+        .is_err()
         {
             clear_exception(&mut env);
         }
