@@ -267,7 +267,7 @@ description = "Build all distributable platform artifacts"
 depends = ["package:android-aar", "package:swiftpm"]
 
 [tasks."npm:publish-dry-run"]
-description = "Build publishable npm packages and run npm publish --dry-run"
+description = "Build publishable npm packages and run npm pack --dry-run"
 depends = ["install:node"]
 run = "CI=true cargo run -p xtask -- npm-publish dry-run"
 sources = ["xtask/**/*.rs", "packages/**/package.json", "packages/**/*.ts", "packages/**/*.mjs", "pnpm-lock.yaml"]
