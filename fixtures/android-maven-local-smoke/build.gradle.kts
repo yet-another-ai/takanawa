@@ -12,6 +12,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = rootProject.version.toString()
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -22,4 +23,8 @@ android {
 
 dependencies {
     implementation("ai.yetanother:takanawa-android:${rootProject.version}")
+
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }
