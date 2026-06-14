@@ -633,15 +633,11 @@ fn build_gdextension_apple() -> Result<()> {
     ensure_gdextension_base()?;
     let root = repo_root();
     let apple_dir = root.join("target/gdextension/apple");
-    let framework_dir = root.join(format!(
+    let macos_framework_dir = root.join(format!(
         "{GDEXTENSION_STAGE}/bin/universal-apple-darwin/Takanawa.framework"
     ));
     let ios_dir = root.join(format!("{GDEXTENSION_STAGE}/bin/ios"));
     fs::create_dir_all(&apple_dir)?;
-    if framework_dir.is_dir() {
-        fs::remove_dir_all(&framework_dir)?;
-    }
-    fs::create_dir_all(&framework_dir)?;
     fs::create_dir_all(&ios_dir)?;
 
     let macos_dylib = apple_dir.join("Takanawa");
@@ -655,23 +651,42 @@ fn build_gdextension_apple() -> Result<()> {
             ])
             .arg(&macos_dylib),
     )?;
-    fs::copy(&macos_dylib, framework_dir.join("Takanawa"))?;
     let version = workspace_version()?;
-    fs::write(
-        framework_dir.join("Info.plist"),
-        framework_info_plist("Takanawa", &version),
+    stage_apple_framework(
+        &macos_framework_dir,
+        &macos_dylib,
+        "Takanawa",
+        &version,
+        "10.15",
     )?;
 
-    let simulator_lib = apple_dir.join("libtakanawa_gdextension_ios_sim.a");
+    let device_framework = apple_dir.join("ios-arm64/Takanawa.framework");
+    stage_apple_framework(
+        &device_framework,
+        &root.join("target/aarch64-apple-ios/release/libtakanawa_gdextension.dylib"),
+        "Takanawa",
+        &version,
+        "12.0",
+    )?;
+
+    let simulator_dylib = apple_dir.join("Takanawa-ios-simulator");
     run_command(
         repo_command("lipo")
             .args([
                 "-create",
-                "target/aarch64-apple-ios-sim/release/libtakanawa_gdextension.a",
-                "target/x86_64-apple-ios/release/libtakanawa_gdextension.a",
+                "target/aarch64-apple-ios-sim/release/libtakanawa_gdextension.dylib",
+                "target/x86_64-apple-ios/release/libtakanawa_gdextension.dylib",
                 "-output",
             ])
-            .arg(&simulator_lib),
+            .arg(&simulator_dylib),
+    )?;
+    let simulator_framework = apple_dir.join("ios-arm64_x86_64-simulator/Takanawa.framework");
+    stage_apple_framework(
+        &simulator_framework,
+        &simulator_dylib,
+        "Takanawa",
+        &version,
+        "12.0",
     )?;
 
     let xcframework = ios_dir.join("TakanawaGDExtension.xcframework");
@@ -680,19 +695,43 @@ fn build_gdextension_apple() -> Result<()> {
     }
     run_command(
         repo_command("xcodebuild")
-            .args([
-                "-create-xcframework",
-                "-library",
-                "target/aarch64-apple-ios/release/libtakanawa_gdextension.a",
-                "-library",
-            ])
-            .arg(&simulator_lib)
+            .args(["-create-xcframework", "-framework"])
+            .arg(&device_framework)
+            .arg("-framework")
+            .arg(&simulator_framework)
             .args(["-output"])
             .arg(&xcframework),
     )
 }
 
-fn framework_info_plist(executable: &str, version: &str) -> String {
+fn stage_apple_framework(
+    framework_dir: &Path,
+    source_binary: &Path,
+    executable: &str,
+    version: &str,
+    minimum_os_version: &str,
+) -> Result<()> {
+    if framework_dir.is_dir() {
+        fs::remove_dir_all(framework_dir)?;
+    }
+    fs::create_dir_all(framework_dir)?;
+
+    let framework_binary = framework_dir.join(executable);
+    fs::copy(source_binary, &framework_binary)?;
+    fs::write(
+        framework_dir.join("Info.plist"),
+        framework_info_plist(executable, version, minimum_os_version),
+    )?;
+
+    let install_name = format!("@rpath/{executable}.framework/{executable}");
+    run_command(
+        repo_command("install_name_tool")
+            .args(["-id", install_name.as_str()])
+            .arg(&framework_binary),
+    )
+}
+
+fn framework_info_plist(executable: &str, version: &str, minimum_os_version: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -709,7 +748,7 @@ fn framework_info_plist(executable: &str, version: &str) -> String {
   <key>CFBundleVersion</key>
   <string>{version}</string>
   <key>MinimumOSVersion</key>
-  <string>10.15</string>
+  <string>{minimum_os_version}</string>
 </dict>
 </plist>
 "#
