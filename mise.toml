@@ -2,7 +2,7 @@
 lockfile = true
 
 [tools]
-dotnet = "latest"
+dotnet = "8"
 java = "temurin-21"
 node = "lts"
 pnpm = "latest"
