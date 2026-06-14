@@ -72,6 +72,7 @@ fn run_main() -> Result<()> {
             sync_version(version)
         }
         "test-capacitor-ios" => test_capacitor_ios(),
+        "test-android-maven-local" => test_android_maven_local(),
         "test-cmake-integration" => test_cmake_integration(),
         "test-swift-integration" => test_swift_integration(),
         "validate-maven-central-env" => validate_maven_central_env(),
@@ -110,6 +111,7 @@ fn print_usage() {
          swiftpm-release-manifest [version]\n  \
          sync-version [version]\n  \
          test-capacitor-ios\n  \
+         test-android-maven-local\n  \
          test-cmake-integration\n  \
          test-swift-integration\n  \
          validate-maven-central-env"
@@ -1418,7 +1420,17 @@ fn publish_android_local() -> Result<()> {
         ":takanawa-android:publishToMavenLocal",
         ":takanawa-android:verifyMavenLocalPublication",
     ]))?;
-    run_command(repo_command("./gradlew").arg(":android-maven-local-smoke:assembleDebug"))
+    run_command(repo_command("./gradlew").args([
+        ":android-maven-local-smoke:assembleDebug",
+        ":android-maven-local-smoke:assembleDebugAndroidTest",
+    ]))
+}
+
+fn test_android_maven_local() -> Result<()> {
+    publish_android_local()?;
+    run_command(
+        repo_command("./gradlew").arg(":android-maven-local-smoke:connectedDebugAndroidTest"),
+    )
 }
 
 fn publish_android_central() -> Result<()> {

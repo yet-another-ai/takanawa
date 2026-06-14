@@ -195,10 +195,16 @@ sources = ["android/**/*.kt", "android/**/*.kts", "android/**/AndroidManifest.xm
 outputs = ["android/takanawa-android/build/outputs/aar/takanawa-android-release.aar"]
 
 [tasks."publish:android-local"]
-description = "Publish the Android SDK to Maven local and build the local smoke app"
+description = "Publish the Android SDK to Maven local and build the local smoke app/test APK"
 depends = ["package:android"]
 run = "mise x android-sdk@9.0 -- cargo run -p xtask -- publish-android-local"
-sources = ["xtask/**/*.rs", "android/**/*.kt", "android/**/*.kts", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+sources = ["xtask/**/*.rs", "android/**/*.kt", "android/**/*.kts", "android/**/consumer-rules.pro", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "fixtures/android-maven-local-smoke/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
+
+[tasks."test:android-maven-local"]
+description = "Publish the Android SDK to Maven local and run the smoke app connected tests"
+depends = ["package:android"]
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- test-android-maven-local"
+sources = ["xtask/**/*.rs", "android/**/*.kt", "android/**/*.kts", "android/**/consumer-rules.pro", "fixtures/android-maven-local-smoke/**/*.kt", "fixtures/android-maven-local-smoke/**/*.kts", "fixtures/android-maven-local-smoke/**/AndroidManifest.xml", "settings.gradle.kts", "build.gradle.kts", "gradle.properties", "target/android/jniLibs"]
 
 [tasks."publish:android-central"]
 description = "Publish and release the Android SDK on Maven Central"

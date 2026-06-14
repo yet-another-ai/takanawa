@@ -923,7 +923,8 @@ mod android_jni {
     use jni::JavaVM;
     use jni::errors::Error as JniError;
     use jni::objects::{
-        GlobalRef, JByteArray, JClass, JLongArray, JMethodID, JObject, JString, JValue,
+        GlobalRef, JByteArray, JClass, JLongArray, JMethodID, JObject, JStaticMethodID, JString,
+        JValue,
     };
     use jni::signature::{Primitive, ReturnType};
     use jni::sys::{jbyte, jint, jlong, jstring};
@@ -942,6 +943,10 @@ mod android_jni {
         listener: GlobalRef,
         _listener_class: GlobalRef,
         method_id: JMethodID,
+        phase_class: GlobalRef,
+        phase_from_code: JStaticMethodID,
+        snapshot_class: GlobalRef,
+        snapshot_ctor: JMethodID,
     }
 
     struct AndroidSpeedCallback {
@@ -949,6 +954,10 @@ mod android_jni {
         listener: GlobalRef,
         _listener_class: GlobalRef,
         method_id: JMethodID,
+        phase_class: GlobalRef,
+        phase_from_code: JStaticMethodID,
+        snapshot_class: GlobalRef,
+        snapshot_ctor: JMethodID,
     }
 
     #[unsafe(no_mangle)]
@@ -1188,11 +1197,42 @@ mod android_jni {
             let Ok(listener) = env.new_global_ref(listener) else {
                 return Ok(status_code(TknwStatus::Internal));
             };
+            let Ok(phase_class) = env.find_class("ai/yetanother/takanawa/DownloadPhase") else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(phase_from_code) = env.get_static_method_id(
+                &phase_class,
+                "fromCode",
+                "(I)Lai/yetanother/takanawa/DownloadPhase;",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(phase_class) = env.new_global_ref(&phase_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_class) = env.find_class("ai/yetanother/takanawa/DownloadSnapshot")
+            else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_ctor) = env.get_method_id(
+                &snapshot_class,
+                "<init>",
+                "(Lai/yetanother/takanawa/DownloadPhase;JJJJJI)V",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_class) = env.new_global_ref(&snapshot_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
             let callback = Box::new(AndroidProgressCallback {
                 java_vm,
                 listener,
                 _listener_class: listener_class,
                 method_id,
+                phase_class,
+                phase_from_code,
+                snapshot_class,
+                snapshot_ctor,
             });
             let context = Box::into_raw(callback).cast::<c_void>();
             let status = tknw_download_set_progress_callback(
@@ -1248,11 +1288,42 @@ mod android_jni {
             let Ok(listener) = env.new_global_ref(listener) else {
                 return Ok(status_code(TknwStatus::Internal));
             };
+            let Ok(phase_class) = env.find_class("ai/yetanother/takanawa/DownloadPhase") else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(phase_from_code) = env.get_static_method_id(
+                &phase_class,
+                "fromCode",
+                "(I)Lai/yetanother/takanawa/DownloadPhase;",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(phase_class) = env.new_global_ref(&phase_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_class) = env.find_class("ai/yetanother/takanawa/DownloadSpeedSnapshot")
+            else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_ctor) = env.get_method_id(
+                &snapshot_class,
+                "<init>",
+                "(Lai/yetanother/takanawa/DownloadPhase;JJJJDI)V",
+            ) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
+            let Ok(snapshot_class) = env.new_global_ref(&snapshot_class) else {
+                return Ok(status_code(TknwStatus::Internal));
+            };
             let callback = Box::new(AndroidSpeedCallback {
                 java_vm,
                 listener,
                 _listener_class: listener_class,
                 method_id,
+                phase_class,
+                phase_from_code,
+                snapshot_class,
+                snapshot_ctor,
             });
             let context = Box::into_raw(callback).cast::<c_void>();
             let status = tknw_download_set_speed_callback(
@@ -1423,34 +1494,42 @@ mod android_jni {
         let Ok(phase_code) = jint::try_from(snapshot.phase) else {
             return;
         };
-        let Ok(phase) = env
-            .call_static_method(
-                "ai/yetanother/takanawa/DownloadPhase",
-                "fromCode",
-                "(I)Lai/yetanother/takanawa/DownloadPhase;",
-                &[JValue::Int(phase_code)],
+        let phase_args = [JValue::Int(phase_code).as_jni()];
+        // SAFETY: phase_from_code is resolved from DownloadPhase.fromCode during
+        // callback registration, and phase_class keeps the class loaded.
+        let Ok(phase) = unsafe {
+            env.call_static_method_unchecked(
+                &callback.phase_class,
+                callback.phase_from_code,
+                ReturnType::Object,
+                &phase_args,
             )
-            .and_then(jni::objects::JValueGen::l)
-        else {
+        }
+        .and_then(jni::objects::JValueGen::l) else {
             clear_exception(&mut env);
             return;
         };
-        let Ok(snapshot_object) = env.new_object(
-            "ai/yetanother/takanawa/DownloadSnapshot",
-            "(Lai/yetanother/takanawa/DownloadPhase;JJJJJI)V",
-            &[
-                JValue::Object(&phase),
-                JValue::Long(values[1]),
-                JValue::Long(values[2]),
-                JValue::Long(values[3]),
-                JValue::Long(values[4]),
-                JValue::Long(values[5]),
-                JValue::Int(match jint::try_from(values[6]) {
-                    Ok(value) => value,
-                    Err(_) => return,
-                }),
-            ],
-        ) else {
+        let Ok(active_io) = jint::try_from(values[6]) else {
+            return;
+        };
+        let snapshot_args = [
+            JValue::Object(&phase).as_jni(),
+            JValue::Long(values[1]).as_jni(),
+            JValue::Long(values[2]).as_jni(),
+            JValue::Long(values[3]).as_jni(),
+            JValue::Long(values[4]).as_jni(),
+            JValue::Long(values[5]).as_jni(),
+            JValue::Int(active_io).as_jni(),
+        ];
+        // SAFETY: snapshot_ctor is resolved from DownloadSnapshot.<init> with
+        // the exact argument list built above, and snapshot_class keeps the class loaded.
+        let Ok(snapshot_object) = (unsafe {
+            env.new_object_unchecked(
+                &callback.snapshot_class,
+                callback.snapshot_ctor,
+                &snapshot_args,
+            )
+        }) else {
             clear_exception(&mut env);
             return;
         };
@@ -1503,34 +1582,42 @@ mod android_jni {
         let Ok(phase_code) = jint::try_from(snapshot.phase) else {
             return;
         };
-        let Ok(phase) = env
-            .call_static_method(
-                "ai/yetanother/takanawa/DownloadPhase",
-                "fromCode",
-                "(I)Lai/yetanother/takanawa/DownloadPhase;",
-                &[JValue::Int(phase_code)],
+        let phase_args = [JValue::Int(phase_code).as_jni()];
+        // SAFETY: phase_from_code is resolved from DownloadPhase.fromCode during
+        // callback registration, and phase_class keeps the class loaded.
+        let Ok(phase) = unsafe {
+            env.call_static_method_unchecked(
+                &callback.phase_class,
+                callback.phase_from_code,
+                ReturnType::Object,
+                &phase_args,
             )
-            .and_then(jni::objects::JValueGen::l)
-        else {
+        }
+        .and_then(jni::objects::JValueGen::l) else {
             clear_exception(&mut env);
             return;
         };
-        let Ok(speed_object) = env.new_object(
-            "ai/yetanother/takanawa/DownloadSpeedSnapshot",
-            "(Lai/yetanother/takanawa/DownloadPhase;JJJJDI)V",
-            &[
-                JValue::Object(&phase),
-                JValue::Long(values[1]),
-                JValue::Long(values[2]),
-                JValue::Long(values[3]),
-                JValue::Long(values[4]),
-                JValue::Double(snapshot.bytes_per_second),
-                JValue::Int(match jint::try_from(values[5]) {
-                    Ok(value) => value,
-                    Err(_) => return,
-                }),
-            ],
-        ) else {
+        let Ok(active_io) = jint::try_from(values[5]) else {
+            return;
+        };
+        let speed_args = [
+            JValue::Object(&phase).as_jni(),
+            JValue::Long(values[1]).as_jni(),
+            JValue::Long(values[2]).as_jni(),
+            JValue::Long(values[3]).as_jni(),
+            JValue::Long(values[4]).as_jni(),
+            JValue::Double(snapshot.bytes_per_second).as_jni(),
+            JValue::Int(active_io).as_jni(),
+        ];
+        // SAFETY: snapshot_ctor is resolved from DownloadSpeedSnapshot.<init>
+        // with the exact argument list built above, and snapshot_class keeps the class loaded.
+        let Ok(speed_object) = (unsafe {
+            env.new_object_unchecked(
+                &callback.snapshot_class,
+                callback.snapshot_ctor,
+                &speed_args,
+            )
+        }) else {
             clear_exception(&mut env);
             return;
         };
