@@ -6,7 +6,7 @@ dotnet = "8"
 java = "temurin-21"
 node = "lts"
 pnpm = "latest"
-rust = { version = "latest", components = "rustfmt,clippy" }
+rust = { version = "1.96", components = "rustfmt,clippy" }
 "cargo:cargo-ndk" = "latest"
 "cargo:cbindgen" = "latest"
 
