@@ -13,10 +13,9 @@ Download `takanawa-gdextension.zip` from a GitHub release and copy its
 The addon includes desktop libraries for Linux, macOS, and 64-bit Windows,
 64-bit Android libraries for Godot export ABIs, and an iOS
 `TakanawaGDExtension.xcframework` whose slices contain loadable
-`Takanawa.framework` bundles. GDExtension builds currently skip 32-bit Windows
-and Android targets because godot-rust's prebuilt API data does not support
-32-bit GDExtension targets. iOS support depends on Godot and godot-rust mobile
-GDExtension support, which is less mature than the desktop path.
+`Takanawa.framework` bundles. 32-bit targets are not supported. iOS support
+depends on Godot and godot-rust mobile GDExtension support, which is less mature
+than the desktop path.
 
 Godot's default feature tags distinguish iOS device `arm64` and simulator
 `x86_64`; add a custom `simulator` feature tag for arm64 simulator exports.

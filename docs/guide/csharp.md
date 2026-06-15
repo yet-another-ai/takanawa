@@ -48,9 +48,9 @@ Dispose each `TakanawaDownload` when it is no longer needed. Call
 
 ## Native Assets
 
-The NuGet package includes native runtime assets for Windows, macOS, Linux, and
-Android. Apple mobile builds consume the packaged `Takanawa.xcframework` through
-the package's transitive MSBuild target.
+The NuGet package includes 64-bit native runtime assets for Windows, macOS,
+Linux, and Android. Apple mobile builds consume the packaged
+`Takanawa.xcframework` through the package's transitive MSBuild target.
 
 ## Local Development
 

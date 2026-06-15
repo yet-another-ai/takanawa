@@ -152,7 +152,7 @@ sources = ["crates/takanawa-ffi/src/**/*.rs", "cbindgen.toml"]
 outputs = ["include/takanawa.h"]
 
 [tasks."package:android"]
-description = "Build Android JNI libraries for all supported ABIs"
+description = "Build Android JNI libraries for supported 64-bit ABIs"
 depends = ["android:sdk", "header"]
 run = "mise x android-sdk@9.0 -- cargo run -p xtask -- build-android"
 sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
@@ -278,7 +278,7 @@ sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*.cs", "packages/takana
 [tasks."pack:csharp"]
 description = "Pack and verify the C# NuGet package from staged native artifacts"
 run = "cargo run -p xtask -- pack-csharp"
-sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*", "target/dist/takanawa-windows-x86_64", "target/dist/takanawa-windows-i686", "target/dist/takanawa-windows-aarch64", "target/dist/takanawa-linux-x86_64", "target/dist/takanawa-macos-universal", "target/dist/takanawa-android", "target/apple/Takanawa.xcframework"]
+sources = ["xtask/**/*.rs", "packages/takanawa-csharp/**/*", "target/dist/takanawa-windows-x86_64", "target/dist/takanawa-windows-aarch64", "target/dist/takanawa-linux-x86_64", "target/dist/takanawa-macos-universal", "target/dist/takanawa-android", "target/apple/Takanawa.xcframework"]
 outputs = ["target/csharp/package"]
 
 [tasks."nuget:publish-dry-run"]

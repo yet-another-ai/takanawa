@@ -86,8 +86,6 @@ tasks.register("verifyReleaseAar") {
             "AndroidManifest.xml",
             "classes.jar",
             "jni/arm64-v8a/libtakanawa_ffi.so",
-            "jni/armeabi-v7a/libtakanawa_ffi.so",
-            "jni/x86/libtakanawa_ffi.so",
             "jni/x86_64/libtakanawa_ffi.so",
         )
 

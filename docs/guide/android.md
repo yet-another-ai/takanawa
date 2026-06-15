@@ -1,7 +1,7 @@
 # Android
 
 Use `takanawa-android` for native Kotlin or Java Android apps. The AAR includes
-the Kotlin SDK and JNI libraries for supported Android ABIs.
+the Kotlin SDK and JNI libraries for supported 64-bit Android ABIs.
 
 ## Install
 

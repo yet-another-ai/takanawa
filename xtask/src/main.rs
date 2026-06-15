@@ -27,6 +27,7 @@ const NUGET_MACOS_XCFRAMEWORK_LIBRARY: &str =
 const GDEXTENSION_ADDON_SRC: &str = "packages/takanawa-gdextension/addons/takanawa";
 const GDEXTENSION_STAGE: &str = "target/gdextension/addons/takanawa";
 const GDEXTENSION_DIST: &str = "target/dist/takanawa-gdextension";
+const SUPPORTED_WINDOWS_TARGETS: &[&str] = &["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"];
 
 fn main() {
     if let Err(error) = run_main() {
@@ -246,6 +247,18 @@ fn request_range(request: &str) -> Option<(usize, usize)> {
     Some((start.parse().ok()?, end.parse().ok()?))
 }
 
+fn ensure_supported_windows_target(target: &str) -> Result<()> {
+    if SUPPORTED_WINDOWS_TARGETS.contains(&target) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "{target} is not a supported Windows target; supported targets are {}",
+        SUPPORTED_WINDOWS_TARGETS.join(", ")
+    )
+    .into())
+}
+
 fn run_command(command: &mut Command) -> Result<()> {
     let debug = format!("{command:?}");
     let status = command
@@ -361,20 +374,14 @@ fn build_android() -> Result<()> {
         "target",
         "add",
         "aarch64-linux-android",
-        "armv7-linux-androideabi",
         "x86_64-linux-android",
-        "i686-linux-android",
     ]))?;
     run_command(repo_command("cargo").args([
         "ndk",
         "-t",
         "arm64-v8a",
         "-t",
-        "armeabi-v7a",
-        "-t",
         "x86_64",
-        "-t",
-        "x86",
         "--platform",
         "23",
         "-o",
@@ -547,13 +554,7 @@ fn build_gdextension_desktop() -> Result<()> {
 fn build_gdextension_windows() -> Result<()> {
     let target = env::var("TAKANAWA_WINDOWS_TARGET")
         .map_err(|_| "TAKANAWA_WINDOWS_TARGET is required for build-gdextension-windows")?;
-    if target == "i686-pc-windows-msvc" {
-        return Err(concat!(
-            "i686-pc-windows-msvc is not supported for Godot GDExtension builds ",
-            "because godot-rust 0.4.x uses 64-bit prebuilt API data"
-        )
-        .into());
-    }
+    ensure_supported_windows_target(&target)?;
     run_command(repo_command("rustup").args(["target", "add", target.as_str()]))?;
     run_command(repo_command("cargo").args([
         "build",
@@ -759,6 +760,7 @@ fn framework_info_plist(executable: &str, version: &str, minimum_os_version: &st
 fn build_windows_ffi() -> Result<()> {
     let target = env::var("TAKANAWA_WINDOWS_TARGET")
         .map_err(|_| "TAKANAWA_WINDOWS_TARGET is required for build-windows-ffi")?;
+    ensure_supported_windows_target(&target)?;
     generate_header()?;
     run_command(repo_command("rustup").args(["target", "add", target.as_str()]))?;
     run_command(repo_command("cargo").args([
@@ -1101,14 +1103,11 @@ fn required_csharp_package_entries() -> &'static [&'static str] {
         "lib/netstandard2.0/YetAnotherAI.Takanawa.xml",
         "buildTransitive/YetAnotherAI.Takanawa.targets",
         "runtimes/win-x64/native/takanawa_ffi.dll",
-        "runtimes/win-x86/native/takanawa_ffi.dll",
         "runtimes/win-arm64/native/takanawa_ffi.dll",
         "runtimes/linux-x64/native/libtakanawa_ffi.so",
         "runtimes/osx-x64/native/libtakanawa_ffi.dylib",
         "runtimes/osx-arm64/native/libtakanawa_ffi.dylib",
         "runtimes/android-arm64/native/libtakanawa_ffi.so",
-        "runtimes/android-arm/native/libtakanawa_ffi.so",
-        "runtimes/android-x86/native/libtakanawa_ffi.so",
         "runtimes/android-x64/native/libtakanawa_ffi.so",
         NUGET_IOS_XCFRAMEWORK_INFO_PLIST,
         NUGET_IOS_DEVICE_XCFRAMEWORK_LIBRARY,
@@ -1175,7 +1174,6 @@ fn prepare_csharp_nuget_assets() -> Result<()> {
 
     for archive in [
         "takanawa-windows-x86_64.zip",
-        "takanawa-windows-i686.zip",
         "takanawa-windows-aarch64.zip",
     ] {
         let path = artifacts_dir.join(archive);

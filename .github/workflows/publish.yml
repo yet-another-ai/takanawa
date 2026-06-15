@@ -88,8 +88,6 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             artifact: takanawa-windows-x86_64
-          - target: i686-pc-windows-msvc
-            artifact: takanawa-windows-i686
           - target: aarch64-pc-windows-msvc
             artifact: takanawa-windows-aarch64
     steps:
@@ -109,7 +107,6 @@ jobs:
           TAKANAWA_WINDOWS_ARTIFACT: ${{ matrix.artifact }}
         run: mise run dist:windows
       - name: Build Windows GDExtension library
-        if: matrix.target != 'i686-pc-windows-msvc'
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
         run: |
@@ -121,7 +118,6 @@ jobs:
           name: ${{ matrix.artifact }}
           path: target/dist/${{ matrix.artifact }}.zip
       - uses: actions/upload-artifact@v4
-        if: matrix.target != 'i686-pc-windows-msvc'
         with:
           name: takanawa-gdextension-${{ matrix.artifact }}
           path: target/dist/takanawa-gdextension-${{ matrix.artifact }}.tar.gz

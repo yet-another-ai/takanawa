@@ -47,7 +47,6 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
-          - i686-pc-windows-msvc
           - aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v6
@@ -64,7 +63,6 @@ jobs:
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
       - run: mise run package:gdextension-desktop
-        if: matrix.target != 'i686-pc-windows-msvc'
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
 

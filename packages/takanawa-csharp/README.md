@@ -16,5 +16,6 @@ download.Start();
 Takanawa.Shutdown();
 ```
 
-The package targets `netstandard2.0` and includes native assets for desktop,
-Android, and Apple targets when built from the release artifact pipeline.
+The package targets `netstandard2.0` and includes 64-bit native assets for
+desktop, Android, and Apple targets when built from the release artifact
+pipeline.

@@ -186,8 +186,9 @@ var snapshot = download.Snapshot();
 Takanawa.Shutdown();
 ```
 
-The package targets `netstandard2.0` and includes managed bindings plus native
-runtime assets for desktop, Android, and Apple targets. Build and test locally:
+The package targets `netstandard2.0` and includes managed bindings plus 64-bit
+native runtime assets for desktop, Android, and Apple targets. Build and test
+locally:
 
 ```sh
 mise run test:csharp
