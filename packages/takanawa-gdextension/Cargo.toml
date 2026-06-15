@@ -1,0 +1,36 @@
+[package]
+name = "takanawa-gdextension"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Godot GDExtension bindings for Takanawa range downloads"
+readme = "README.md"
+keywords = ["download", "godot", "gdextension", "gdscript"]
+categories = ["api-bindings", "network-programming"]
+include = [
+    "Cargo.toml",
+    "README.md",
+    "addons/**/*",
+    "src/**/*.rs",
+]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+name = "takanawa_gdextension"
+
+[features]
+default = ["tls-rustls"]
+tls-rustls = ["takanawa-http/tls-rustls"]
+tls-platform-native = ["takanawa-http/tls-platform-native"]
+tls-platform-roots = ["tls-platform-native"]
+
+[dependencies]
+godot.workspace = true
+takanawa-core.workspace = true
+takanawa-http = { workspace = true, default-features = false }
+tokio.workspace = true
+
+[lints]
+workspace = true

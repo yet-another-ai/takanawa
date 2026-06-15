@@ -64,10 +64,19 @@ jobs:
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Build Linux dynamic library
         run: mise run dist:linux
+      - name: Build Linux GDExtension library
+        run: |
+          mise run package:gdextension-desktop
+          mkdir -p target/dist
+          tar -C target/gdextension -czf target/dist/takanawa-gdextension-linux-x86_64.tar.gz addons
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-linux-x86_64
           path: target/dist/takanawa-linux-x86_64.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: takanawa-gdextension-linux-x86_64
+          path: target/dist/takanawa-gdextension-linux-x86_64.tar.gz
 
   artifact-windows:
     name: Build Windows release artifact (${{ matrix.target }})
@@ -99,10 +108,23 @@ jobs:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
           TAKANAWA_WINDOWS_ARTIFACT: ${{ matrix.artifact }}
         run: mise run dist:windows
+      - name: Build Windows GDExtension library
+        if: matrix.target != 'i686-pc-windows-msvc'
+        env:
+          TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
+        run: |
+          mise run package:gdextension-desktop
+          mkdir target/dist
+          tar -C target/gdextension -czf target/dist/takanawa-gdextension-${{ matrix.artifact }}.tar.gz addons
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: target/dist/${{ matrix.artifact }}.zip
+      - uses: actions/upload-artifact@v4
+        if: matrix.target != 'i686-pc-windows-msvc'
+        with:
+          name: takanawa-gdextension-${{ matrix.artifact }}
+          path: target/dist/takanawa-gdextension-${{ matrix.artifact }}.tar.gz
 
   artifact-apple:
     name: Build Apple release artifacts
@@ -123,6 +145,11 @@ jobs:
         run: mise run dist:macos-universal
       - name: Build Apple SwiftPM artifacts
         run: mise run dist:apple-swiftpm
+      - name: Build Apple GDExtension libraries
+        run: |
+          mise run package:gdextension-ios
+          mkdir -p target/dist
+          tar -C target/gdextension -czf target/dist/takanawa-gdextension-apple.tar.gz addons
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-macos-universal
@@ -134,6 +161,10 @@ jobs:
             target/dist/Takanawa.xcframework.zip
             target/dist/Takanawa.xcframework.zip.checksum
             target/dist/Package.swift
+      - uses: actions/upload-artifact@v4
+        with:
+          name: takanawa-gdextension-apple
+          path: target/dist/takanawa-gdextension-apple.tar.gz
 
   artifact-android:
     name: Build Android release artifact
@@ -153,6 +184,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build Android AAR and JNI libraries
         run: mise run dist:android
+      - name: Build Android GDExtension libraries
+        run: |
+          mise run package:gdextension-android
+          mkdir -p target/dist
+          tar -C target/gdextension -czf target/dist/takanawa-gdextension-android.tar.gz addons
       - uses: actions/upload-artifact@v4
         with:
           name: takanawa-android-jniLibs
@@ -161,6 +197,10 @@ jobs:
         with:
           name: takanawa-android-aar
           path: target/dist/takanawa-android-release.aar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: takanawa-gdextension-android
+          path: target/dist/takanawa-gdextension-android.tar.gz
 
   publish-android:
     name: Publish Android SDK to Maven Central
@@ -201,6 +241,37 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: mise run publish:android-central
 
+  artifact-gdextension:
+    name: Package Godot GDExtension addon
+    runs-on: ubuntu-latest
+    needs:
+      - artifact-linux
+      - artifact-windows
+      - artifact-apple
+      - artifact-android
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: takanawa-gdextension-*
+          path: target/gdextension-platform-artifacts
+      - name: Merge platform GDExtension artifacts
+        shell: bash
+        run: |
+          mkdir -p target/gdextension
+          for archive in target/gdextension-platform-artifacts/*/*.tar.gz; do
+            tar -xzf "$archive" -C target/gdextension
+          done
+          mise run dist:gdextension
+      - uses: actions/upload-artifact@v4
+        with:
+          name: takanawa-gdextension
+          path: target/dist/takanawa-gdextension.zip
+
   github-release:
     name: Create GitHub release
     runs-on: ubuntu-latest
@@ -210,6 +281,7 @@ jobs:
       - artifact-windows
       - artifact-apple
       - artifact-android
+      - artifact-gdextension
       - publish-android
       - publish-nuget
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')

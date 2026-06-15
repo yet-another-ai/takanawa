@@ -24,6 +24,8 @@ downloads can resume automatically.
   npm package and the `tauri-plugin-takanawa` Rust crate. The frontend package
   uses the shared TypeScript API while the Rust plugin compiles into the host
   Tauri app.
+- `packages/takanawa-gdextension`: Godot 4 GDExtension package that exposes
+  downloads to GDScript through a `TakanawaDownload` node.
 
 Default TLS uses `rustls` with bundled webpki roots via the `tls-rustls`
 feature. Platform-native TLS can be selected with `default-features = false`
@@ -132,6 +134,35 @@ uploaded `Takanawa.xcframework.zip`.
 The Capacitor plugin does not publish a separate SwiftPM plugin artifact. Its
 iOS bridge and `Takanawa.xcframework` are bundled in the npm package, and
 `packages/takanawa-capacitor/Package.swift` uses the bundled binary by default.
+
+## Godot GDExtension
+
+GDScript projects can install the `takanawa-gdextension.zip` release artifact
+and copy `addons/takanawa` into a Godot 4 project. The extension registers a
+`TakanawaDownload` node with progress and speed signals:
+
+```gdscript
+var download := TakanawaDownload.new()
+add_child(download)
+download.progress.connect(func(snapshot: Dictionary) -> void:
+    print(snapshot["downloaded_bytes"])
+)
+download.configure({
+    "url": "https://example.com/file.bin",
+    "target_path": "user://file.bin",
+})
+download.start()
+```
+
+Build the host desktop GDExtension locally with:
+
+```sh
+mise run package:gdextension-desktop
+mise run dist:gdextension
+```
+
+Godot C# projects can keep using the NuGet package below; the GDExtension target
+is for GDScript/native Godot consumers.
 
 ## C# and NuGet
 

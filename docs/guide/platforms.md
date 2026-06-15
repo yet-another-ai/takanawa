@@ -9,6 +9,7 @@ target surfaces. Each target has its own installation path.
 | [Node and Electron](./node) | `takanawa-node` | npm | You need Node-API bindings on desktop/server JavaScript. |
 | [Capacitor](./capacitor) | `takanawa-capacitor` | npm | You are building a Capacitor v8 Android/iOS app and want a TypeScript API. |
 | [Tauri](./tauri) | `takanawa-tauri`, `tauri-plugin-takanawa` | npm and crates.io | You are building a Tauri v2 desktop app and want the shared TypeScript API. |
+| [Godot GDExtension](./gdextension) | `takanawa-gdextension` | GitHub release addon zip | You are building a Godot 4 project with GDScript. |
 | [Android](./android) | `ai.yetanother:takanawa-android` | Maven Central | You are building a native Kotlin or Java Android app. |
 | [Apple and SwiftPM](./apple) | `Takanawa` | SwiftPM binary target | You are building a native Swift app on iOS or macOS. |
 | [C# and NuGet](./csharp) | `YetAnotherAI.Takanawa` | NuGet | You are building a .NET desktop app, Unity project, or Godot C# project. |

@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run build:desktop
+      - run: mise run package:gdextension-desktop
 
   windows:
     name: Windows release build (${{ matrix.target }})
@@ -62,6 +63,10 @@ jobs:
       - run: mise run build:windows-ffi
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
+      - run: mise run package:gdextension-desktop
+        if: matrix.target != 'i686-pc-windows-msvc'
+        env:
+          TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
 
   android:
     name: Android AAR release build
@@ -80,6 +85,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: mise run package:android-aar
       - run: mise run publish:android-local
+      - run: mise run package:gdextension-android
       - run: mise run test:capacitor-android
       - name: Enable KVM for Android emulator
         run: |
@@ -113,6 +119,7 @@ jobs:
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run check:apple
+      - run: mise run package:gdextension-ios
       - uses: actions/upload-artifact@v4
         with:
           name: Takanawa.xcframework-swiftpm

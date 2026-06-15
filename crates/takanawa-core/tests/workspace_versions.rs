@@ -199,6 +199,50 @@ fn capacitor_npm_package_bundles_ios_xcframework() {
     );
 }
 
+#[test]
+fn gdextension_ios_libraries_target_framework_slices() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("takanawa-core lives under crates/takanawa-core");
+    let gdextension = fs::read_to_string(
+        workspace_root.join("packages/takanawa-gdextension/addons/takanawa/takanawa.gdextension"),
+    )
+    .expect("GDExtension manifest should be readable");
+    let xtask_main = fs::read_to_string(workspace_root.join("xtask/src/main.rs"))
+        .expect("xtask main should be readable");
+
+    assert!(
+        gdextension.contains(
+            r#"ios.arm64 = "res://addons/takanawa/bin/ios/TakanawaGDExtension.xcframework/ios-arm64/Takanawa.framework""#
+        ),
+        "Godot iOS device builds must load the concrete framework inside the XCFramework"
+    );
+    assert!(
+        gdextension.contains(
+            r#"ios.x86_64 = "res://addons/takanawa/bin/ios/TakanawaGDExtension.xcframework/ios-arm64_x86_64-simulator/Takanawa.framework""#
+        ),
+        "Godot x86_64 iOS simulator builds must load the concrete framework inside the XCFramework"
+    );
+    assert!(
+        gdextension.contains(
+            r#"ios.simulator.arm64 = "res://addons/takanawa/bin/ios/TakanawaGDExtension.xcframework/ios-arm64_x86_64-simulator/Takanawa.framework""#
+        ),
+        "Projects that add a simulator feature tag must be able to target the simulator framework slice"
+    );
+    assert!(
+        !gdextension
+            .contains(r#"ios = "res://addons/takanawa/bin/ios/TakanawaGDExtension.xcframework""#),
+        "Godot cannot dlopen the XCFramework distribution container directly"
+    );
+    assert!(
+        xtask_main.contains("stage_apple_framework")
+            && xtask_main.contains("libtakanawa_gdextension.dylib")
+            && xtask_main.contains(r#""-framework""#),
+        "GDExtension Apple packaging must build XCFramework slices from concrete dynamic frameworks"
+    );
+}
+
 fn workspace_package_version(cargo_toml: &str) -> Option<String> {
     let mut in_workspace_package = false;
     for raw_line in cargo_toml.lines() {

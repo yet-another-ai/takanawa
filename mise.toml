@@ -97,6 +97,12 @@ depends = ["header"]
 run = "cargo build --workspace --all-features --release --locked"
 sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/**/*.rs", "packages/**/Cargo.toml", "include/takanawa.h"]
 
+[tasks."package:gdextension-desktop"]
+description = "Build and stage the Godot GDExtension for the current desktop host"
+run = "cargo run -p xtask -- build-gdextension-desktop"
+sources = ["xtask/**/*.rs", "Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/takanawa-gdextension/**/*"]
+outputs = ["target/gdextension/addons/takanawa/bin"]
+
 [tasks."build:windows-ffi"]
 description = "Build the Windows FFI library for TAKANAWA_WINDOWS_TARGET"
 run = "cargo run -p xtask -- build-windows-ffi"
@@ -126,6 +132,12 @@ run = "cargo run -p xtask -- dist-android"
 sources = ["xtask/**/*.rs", "target/android/jniLibs", "android/takanawa-android/build/outputs/aar/takanawa-android-release.aar", "include/takanawa.h"]
 outputs = ["target/dist/takanawa-android-jniLibs.tar.gz", "target/dist/takanawa-android-release.aar"]
 
+[tasks."dist:gdextension"]
+description = "Package the staged Godot GDExtension addon"
+run = "cargo run -p xtask -- dist-gdextension"
+sources = ["xtask/**/*.rs", "packages/takanawa-gdextension/addons/**/*", "target/gdextension/addons/**/*"]
+outputs = ["target/dist/takanawa-gdextension.zip"]
+
 [tasks."dist:apple-swiftpm"]
 description = "Stage Apple SwiftPM release artifacts"
 depends = ["check:apple", "swiftpm:release-manifest"]
@@ -145,6 +157,13 @@ depends = ["android:sdk", "header"]
 run = "mise x android-sdk@9.0 -- cargo run -p xtask -- build-android"
 sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h"]
 outputs = ["target/android/jniLibs"]
+
+[tasks."package:gdextension-android"]
+description = "Build and stage Godot GDExtension Android libraries for supported 64-bit ABIs"
+depends = ["android:sdk"]
+run = "mise x android-sdk@9.0 -- cargo run -p xtask -- build-gdextension-android"
+sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "packages/takanawa-gdextension/**/*"]
+outputs = ["target/gdextension/addons/takanawa/bin/android"]
 
 [tasks."test:android"]
 description = "Run Android SDK unit tests"
@@ -219,9 +238,20 @@ run = "cargo run -p xtask -- build-apple-xcframework"
 sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "include/takanawa.h", "include/module.modulemap"]
 outputs = ["target/apple/Takanawa.xcframework", "target/swiftpm/Takanawa.xcframework.zip", "target/swiftpm/Takanawa.xcframework.zip.checksum"]
 
+[tasks."package:gdextension-ios"]
+description = "Build and stage Godot GDExtension macOS and iOS libraries"
+run = "cargo run -p xtask -- build-gdextension-apple"
+sources = ["xtask/**/*.rs", "crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock", "packages/takanawa-gdextension/**/*"]
+outputs = ["target/gdextension/addons/takanawa/bin/universal-apple-darwin", "target/gdextension/addons/takanawa/bin/ios"]
+
 [tasks."package:swiftpm"]
 description = "Alias for the SwiftPM binary artifact produced by package:apple"
 depends = ["package:apple"]
+
+[tasks."test:gdextension"]
+description = "Run the Godot GDExtension Rust tests"
+run = "cargo test -p takanawa-gdextension --locked"
+sources = ["Cargo.toml", "Cargo.lock", "crates/**/*.rs", "crates/**/Cargo.toml", "packages/takanawa-gdextension/**/*.rs", "packages/takanawa-gdextension/Cargo.toml"]
 
 [tasks."test:swift-integration"]
 description = "Build and run a SwiftPM smoke test against the packaged XCFramework"
