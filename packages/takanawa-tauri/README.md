@@ -20,7 +20,7 @@ Add the Rust plugin crate to `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-takanawa-tauri = { package = "tauri-plugin-takanawa", version = "0.7.5" }
+takanawa-tauri = { package = "tauri-plugin-takanawa", version = "0.8.0" }
 ```
 
 Register the plugin in the Tauri builder:

@@ -61,7 +61,7 @@ The Android SDK is published as:
 
 ```kotlin
 dependencies {
-    implementation("ai.yetanother:takanawa-android:0.7.5")
+    implementation("ai.yetanother:takanawa-android:0.8.0")
 }
 ```
 

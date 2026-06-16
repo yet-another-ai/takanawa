@@ -1,6 +1,6 @@
 {
   "name": "takanawa-node",
-  "version": "0.7.5",
+  "version": "0.8.0",
   "description": "Node.js and Electron bindings for Takanawa powered by napi-rs.",
   "license": "MIT",
   "repository": {
