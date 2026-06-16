@@ -163,8 +163,7 @@ fn capacitor_npm_package_bundles_ios_xcframework() {
         .parent()
         .and_then(Path::parent)
         .expect("takanawa-core lives under crates/takanawa-core");
-    let xtask_main = fs::read_to_string(workspace_root.join("xtask/src/main.rs"))
-        .expect("xtask main should be readable");
+    let xtask_source = xtask_source_text(workspace_root);
     let package_swift =
         fs::read_to_string(workspace_root.join("packages/takanawa-capacitor/Package.swift"))
             .expect("Capacitor Package.swift should be readable");
@@ -194,7 +193,7 @@ fn capacitor_npm_package_bundles_ios_xcframework() {
         "staged Capacitor Swift wrapper source must stay out of git"
     );
     assert!(
-        xtask_main.contains("prepare_capacitor_npm_package"),
+        xtask_source.contains("prepare_capacitor_npm_package"),
         "npm publish must stage the Capacitor XCFramework before packing"
     );
 }
@@ -209,8 +208,7 @@ fn gdextension_ios_libraries_target_framework_slices() {
         workspace_root.join("packages/takanawa-gdextension/addons/takanawa/takanawa.gdextension"),
     )
     .expect("GDExtension manifest should be readable");
-    let xtask_main = fs::read_to_string(workspace_root.join("xtask/src/main.rs"))
-        .expect("xtask main should be readable");
+    let xtask_source = xtask_source_text(workspace_root);
 
     assert!(
         gdextension.contains(
@@ -236,11 +234,29 @@ fn gdextension_ios_libraries_target_framework_slices() {
         "Godot cannot dlopen the XCFramework distribution container directly"
     );
     assert!(
-        xtask_main.contains("stage_apple_framework")
-            && xtask_main.contains("libtakanawa_gdextension.dylib")
-            && xtask_main.contains(r#""-framework""#),
+        xtask_source.contains("stage_apple_framework")
+            && xtask_source.contains("libtakanawa_gdextension.dylib")
+            && xtask_source.contains(r#""-framework""#),
         "GDExtension Apple packaging must build XCFramework slices from concrete dynamic frameworks"
     );
+}
+
+fn xtask_source_text(workspace_root: &Path) -> String {
+    let mut source_paths = fs::read_dir(workspace_root.join("xtask/src"))
+        .expect("xtask source directory should be readable")
+        .map(|entry| entry.expect("xtask source entry should be readable").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect::<Vec<_>>();
+    source_paths.sort();
+
+    let mut source = String::new();
+    for source_path in source_paths {
+        source.push_str(&fs::read_to_string(&source_path).unwrap_or_else(|error| {
+            panic!("{} should be readable: {error}", source_path.display())
+        }));
+        source.push('\n');
+    }
+    source
 }
 
 fn workspace_package_version(cargo_toml: &str) -> Option<String> {
