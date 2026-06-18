@@ -504,7 +504,11 @@ TknwStatus tknw_download_last_error(const struct TknwDownload *download,
 /**
  * Returns the most recent download error status code.
  *
- * Returns [`TKNW_STATUS_OK`] when the download has no recorded error.
+ * Returns [`TknwStatus::Ok`] when the download has no recorded error.
+ *
+ * # Panics
+ *
+ * Panics if the shared progress state or last-status mutex is poisoned.
  */
 TknwStatus tknw_download_last_error_code(const struct TknwDownload *download);
 

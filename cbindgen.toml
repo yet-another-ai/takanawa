@@ -12,6 +12,7 @@ exclude = [
   "Java_ai_yetanother_takanawa_NativeBridge_downloadCopyBitmap",
   "Java_ai_yetanother_takanawa_NativeBridge_downloadCreate",
   "Java_ai_yetanother_takanawa_NativeBridge_downloadLastError",
+  "Java_ai_yetanother_takanawa_NativeBridge_downloadLastErrorCode",
   "Java_ai_yetanother_takanawa_NativeBridge_downloadPause",
   "Java_ai_yetanother_takanawa_NativeBridge_downloadRelease",
   "Java_ai_yetanother_takanawa_NativeBridge_downloadSetProgressCallback",
