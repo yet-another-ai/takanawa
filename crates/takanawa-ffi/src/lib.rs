@@ -702,6 +702,10 @@ pub extern "C" fn tknw_download_last_error(
 /// Returns the most recent download error status code.
 ///
 /// Returns [`TknwStatus::Ok`] when the download has no recorded error.
+///
+/// # Panics
+///
+/// Panics if the shared progress state or last-status mutex is poisoned.
 #[unsafe(no_mangle)]
 pub extern "C" fn tknw_download_last_error_code(download: *const TknwDownload) -> TknwStatus {
     ffi_boundary(|| {
@@ -908,7 +912,6 @@ const fn status_from_code(code: i32) -> TknwStatus {
         -50 => TknwStatus::Cancelled,
         -51 => TknwStatus::AlreadyStarted,
         -100 => TknwStatus::Panic,
-        -101 => TknwStatus::Internal,
         _ => TknwStatus::Internal,
     }
 }

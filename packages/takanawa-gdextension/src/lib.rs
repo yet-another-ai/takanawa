@@ -184,11 +184,13 @@ impl TakanawaDownload {
     }
 
     #[func]
+    #[must_use]
     pub fn last_error(&self) -> GString {
         GString::from(self.last_error.as_str())
     }
 
     #[func]
+    #[must_use]
     pub fn last_error_code(&self) -> i32 {
         self.last_error_code
     }

@@ -28,6 +28,7 @@ const SPEED_EVENT: &str = "takanawa://download-speed";
 
 type CommandResult<T> = Result<T, String>;
 
+#[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("takanawa")
         .setup(|app, _api| {
