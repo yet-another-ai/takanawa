@@ -384,7 +384,9 @@ fn parse_hash_kind(value: &str) -> CommandResult<HashKind> {
         "sha512" | "sha-512" => Ok(HashKind::Sha512),
         "md5" => Ok(HashKind::Md5),
         "crc32" | "crc-32" => Ok(HashKind::Crc32),
-        _ => Err(invalid_config_error(format!("unsupported hash kind: {value}"))),
+        _ => Err(invalid_config_error(format!(
+            "unsupported hash kind: {value}"
+        ))),
     }
 }
 

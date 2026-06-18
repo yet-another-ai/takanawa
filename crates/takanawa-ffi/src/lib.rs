@@ -968,8 +968,8 @@ mod android_jni {
         tknw_download_copy_bitmap, tknw_download_create, tknw_download_last_error,
         tknw_download_last_error_code, tknw_download_pause, tknw_download_release,
         tknw_download_set_progress_callback, tknw_download_set_speed_callback,
-        tknw_download_snapshot, tknw_download_start,
-        tknw_global_init, tknw_global_set_max_io, tknw_global_shutdown,
+        tknw_download_snapshot, tknw_download_start, tknw_global_init, tknw_global_set_max_io,
+        tknw_global_shutdown,
     };
 
     struct AndroidProgressCallback {
