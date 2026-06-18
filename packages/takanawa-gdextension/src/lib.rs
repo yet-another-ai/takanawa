@@ -597,22 +597,22 @@ fn hash_label(kind: HashKind) -> &'static str {
 fn snapshot_to_dictionary(snapshot: DownloadSnapshot) -> VarDictionary {
     let snapshot = NativeDownloadSnapshot::from(snapshot);
     let mut dict = VarDictionary::new();
-    dict.set("phase", snapshot.phase.to_variant());
-    dict.set("content_len", snapshot.content_len.to_variant());
-    dict.set("downloaded_bytes", snapshot.downloaded_bytes.to_variant());
-    dict.set("chunk_size", snapshot.chunk_size.to_variant());
-    dict.set("chunk_count", snapshot.chunk_count.to_variant());
-    dict.set("completed_chunks", snapshot.completed_chunks.to_variant());
-    dict.set("active_io", active_io_to_variant(snapshot.active_io));
+    dict.set("phase", snapshot.phase);
+    dict.set("content_len", snapshot.content_len);
+    dict.set("downloaded_bytes", snapshot.downloaded_bytes);
+    dict.set("chunk_size", snapshot.chunk_size);
+    dict.set("chunk_count", snapshot.chunk_count);
+    dict.set("completed_chunks", snapshot.completed_chunks);
+    dict.set("active_io", active_io_to_i64(snapshot.active_io));
     if let Some(error) = snapshot.last_error {
-        dict.set("last_error", error.to_variant());
+        dict.set("last_error", error);
     } else {
-        dict.set("last_error", Variant::nil());
+        dict.set("last_error", &Variant::nil());
     }
     if let Some(error_code) = snapshot.last_error_code {
-        dict.set("last_error_code", error_code.to_variant());
+        dict.set("last_error_code", error_code);
     } else {
-        dict.set("last_error_code", Variant::nil());
+        dict.set("last_error_code", &Variant::nil());
     }
     dict
 }
@@ -620,18 +620,18 @@ fn snapshot_to_dictionary(snapshot: DownloadSnapshot) -> VarDictionary {
 fn speed_snapshot_to_dictionary(snapshot: DownloadSpeedSnapshot) -> VarDictionary {
     let snapshot = NativeDownloadSpeedSnapshot::from(snapshot);
     let mut dict = VarDictionary::new();
-    dict.set("phase", snapshot.phase.to_variant());
-    dict.set("content_len", snapshot.content_len.to_variant());
-    dict.set("received_bytes", snapshot.received_bytes.to_variant());
-    dict.set("interval_bytes", snapshot.interval_bytes.to_variant());
-    dict.set("elapsed_millis", snapshot.elapsed_millis.to_variant());
-    dict.set("bytes_per_second", snapshot.bytes_per_second.to_variant());
-    dict.set("active_io", active_io_to_variant(snapshot.active_io));
+    dict.set("phase", snapshot.phase);
+    dict.set("content_len", snapshot.content_len);
+    dict.set("received_bytes", snapshot.received_bytes);
+    dict.set("interval_bytes", snapshot.interval_bytes);
+    dict.set("elapsed_millis", snapshot.elapsed_millis);
+    dict.set("bytes_per_second", snapshot.bytes_per_second);
+    dict.set("active_io", active_io_to_i64(snapshot.active_io));
     dict
 }
 
-fn active_io_to_variant(active_io: usize) -> Variant {
-    i64::try_from(active_io).unwrap_or(i64::MAX).to_variant()
+fn active_io_to_i64(active_io: usize) -> i64 {
+    i64::try_from(active_io).unwrap_or(i64::MAX)
 }
 
 impl From<DownloadSnapshot> for NativeDownloadSnapshot {

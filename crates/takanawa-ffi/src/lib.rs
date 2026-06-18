@@ -976,7 +976,7 @@ mod android_jni {
     };
 
     struct AndroidProgressCallback {
-        handle: usize,
+        handle: jlong,
         java_vm: JavaVM,
         listener: GlobalRef,
         _listener_class: GlobalRef,
@@ -1263,7 +1263,7 @@ mod android_jni {
                 return Ok(status_code(TknwStatus::Internal));
             };
             let callback = Box::new(AndroidProgressCallback {
-                handle: handle as usize,
+                handle,
                 java_vm,
                 listener,
                 _listener_class: listener_class,
@@ -1536,7 +1536,7 @@ mod android_jni {
         };
         // SAFETY: snapshot is non-null and only read during this callback.
         let snapshot = unsafe { &*snapshot };
-        let Ok(values) = snapshot_values(snapshot, download_const(callback.handle as jlong)) else {
+        let Ok(values) = snapshot_values(snapshot, download_const(callback.handle)) else {
             return;
         };
         let Ok(phase_code) = jint::try_from(snapshot.phase) else {
