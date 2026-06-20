@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module'
 
+import type { TakanawaStatusCode } from 'takanawa-js-core'
+
 const require = createRequire(import.meta.url)
 
 export interface NativeDownloadOptions {
@@ -34,7 +36,7 @@ export interface NativeDownloadSnapshot {
   completed_chunks: string
   active_io: number
   last_error?: string
-  last_error_code?: number
+  last_error_code?: TakanawaStatusCode
 }
 
 export interface NativeDownloadSpeedSnapshot {

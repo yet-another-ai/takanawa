@@ -33,7 +33,7 @@
     "src/**/*.rs"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"const fs = require('node:fs'); fs.copyFileSync('dist/takanawa-tauri/src/index.d.ts', 'dist/index.d.ts'); fs.copyFileSync('dist/takanawa-tauri/src/testing.d.ts', 'dist/testing.d.ts')\"",
+    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node ../../scripts/prepare-npm-declarations.mjs takanawa-tauri index testing",
     "test": "pnpm run build && node --test __test__/*.test.mjs"
   },
   "peerDependencies": {

@@ -1,4 +1,5 @@
 import type { PluginListenerHandle } from '@capacitor/core'
+import type { TakanawaStatusCode } from 'takanawa-js-core'
 
 export interface NativeHashConfig {
   kind: string
@@ -32,7 +33,7 @@ export interface NativeDownloadSnapshot {
   completedChunks: string
   activeIo: number
   lastError?: string
-  lastErrorCode?: number
+  lastErrorCode?: TakanawaStatusCode
 }
 
 export interface NativeDownloadSpeedSnapshot {

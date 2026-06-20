@@ -27,7 +27,7 @@
   "scripts": {
     "build": "pnpm run build:native && pnpm run build:ts",
     "build:native": "napi build --platform --release",
-    "build:ts": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-node/src/index.d.ts', 'dist/index.d.ts')\"",
+    "build:ts": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node ../../scripts/prepare-npm-declarations.mjs takanawa-node index",
     "dev:native": "napi build --platform",
     "dev:ts": "vite build --watch",
     "test": "pnpm run build && node --test __test__/*.test.mjs"

@@ -70,7 +70,7 @@ export interface DownloadSnapshot {
   completedChunks: bigint
   activeIo: number
   lastError?: string
-  lastErrorCode?: number
+  lastErrorCode?: TakanawaStatusCode
 }
 
 export interface DownloadSpeedSnapshot {

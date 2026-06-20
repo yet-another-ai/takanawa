@@ -29,7 +29,7 @@
     "ios/Takanawa.xcframework"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-capacitor/src/index.d.ts', 'dist/index.d.ts')\"",
+    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node ../../scripts/prepare-npm-declarations.mjs takanawa-capacitor index",
     "test": "pnpm run build && node --test __test__/*.test.mjs"
   },
   "peerDependencies": {
