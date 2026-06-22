@@ -12,7 +12,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -37,8 +37,8 @@ rustls = "0.23"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.11"
-takanawa-core = { version = "0.8.1", path = "crates/takanawa-core" }
-takanawa-http = { version = "0.8.1", path = "crates/takanawa-http", default-features = false }
+takanawa-core = { version = "0.8.2", path = "crates/takanawa-core" }
+takanawa-http = { version = "0.8.2", path = "crates/takanawa-http", default-features = false }
 tauri = { version = "2.11", default-features = false }
 tauri-plugin = { version = "2.6", features = ["build"] }
 tempfile = "3.27"
