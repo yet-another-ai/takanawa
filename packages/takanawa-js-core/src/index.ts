@@ -31,10 +31,10 @@ const STATUS_NAME_BY_CODE = new Map<number, TakanawaStatusName>(
 const TAKANAWA_ERROR_PATTERN = /^takanawa error (-?\d+): ([\s\S]*)$/
 
 export class TakanawaError extends Error {
-  readonly statusCode?: number
+  readonly statusCode?: TakanawaStatusCode
   readonly status?: TakanawaStatusName
 
-  constructor(message: string, statusCode?: number, options?: ErrorOptions) {
+  constructor(message: string, statusCode?: TakanawaStatusCode, options?: ErrorOptions) {
     super(message, options)
     this.name = 'TakanawaError'
     this.statusCode = statusCode
@@ -92,7 +92,7 @@ export interface DownloadSnapshot {
   completedChunks: bigint
   activeIo: number
   lastError?: string
-  lastErrorCode?: number
+  lastErrorCode?: TakanawaStatusCode
 }
 
 export interface DownloadSpeedSnapshot {
@@ -144,7 +144,7 @@ export interface NormalizedDownloadSnapshot {
   completedChunks: string
   activeIo: number
   lastError?: string
-  lastErrorCode?: number
+  lastErrorCode?: TakanawaStatusCode
 }
 
 export interface NormalizedDownloadSpeedSnapshot {
@@ -416,7 +416,7 @@ function parseTakanawaErrorMessage(message: string, cause?: unknown): TakanawaEr
   if (match === null) {
     return new TakanawaError(message, undefined, cause === undefined ? undefined : { cause })
   }
-  return new TakanawaError(match[2], Number(match[1]), cause === undefined ? undefined : { cause })
+  return new TakanawaError(match[2], Number(match[1]) as TakanawaStatusCode, cause === undefined ? undefined : { cause })
 }
 
 export function mapSpeedSnapshot(snapshot: NormalizedDownloadSpeedSnapshot): DownloadSpeedSnapshot {
