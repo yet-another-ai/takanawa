@@ -1,0 +1,17 @@
+import { defineConfig } from 'tsdown'
+
+export default defineConfig({
+  entry: {
+    index: 'src/index.ts',
+    testing: 'src/testing.ts'
+  },
+  deps: {
+    neverBundle: ['@capacitor/core']
+  },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  outExtensions: () => ({
+    dts: '.d.ts'
+  })
+})

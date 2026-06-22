@@ -14,9 +14,28 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./src/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "import": "./src/testing.ts",
+      "require": "./src/testing.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.mjs",
+        "require": "./dist/index.cjs"
+      },
+      "./testing": {
+        "types": "./dist/testing.d.ts",
+        "import": "./dist/testing.mjs",
+        "require": "./dist/testing.cjs"
+      }
     }
   },
   "files": [
@@ -29,7 +48,7 @@
     "ios/Takanawa.xcframework"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.json --emitDeclarationOnly && node -e \"require('node:fs').copyFileSync('dist/takanawa-capacitor/src/index.d.ts', 'dist/index.d.ts')\"",
+    "build": "tsdown",
     "test": "pnpm run build && node --test __test__/*.test.mjs"
   },
   "peerDependencies": {
@@ -39,8 +58,8 @@
     "@capacitor/android": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@types/node": "^24.10.1",
-    "typescript": "^5.9.3",
-    "vite": "^8.0.16"
+    "tsdown": "^0.22.3",
+    "typescript": "^5.9.3"
   },
   "capacitor": {
     "ios": {
