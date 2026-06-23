@@ -1,6 +1,6 @@
 {
   "name": "takanawa-js-core",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "description": "Internal shared JavaScript facade and target adapter contracts for Takanawa npm packages.",
   "license": "MIT",
