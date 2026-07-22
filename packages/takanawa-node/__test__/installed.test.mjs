@@ -4,38 +4,23 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { DownloadTask, downloadToCompletion } from '../dist/index.mjs'
+import { DownloadTask, downloadToCompletion } from 'takanawa-node'
 
 const require = createRequire(import.meta.url)
 
-test('exports public API', () => {
+test('loads installed ESM and CommonJS exports', () => {
+  const commonjs = require('takanawa-node')
+
   assert.equal(typeof DownloadTask, 'function')
   assert.equal(typeof downloadToCompletion, 'function')
-  for (const method of [
-    'start',
-    'pause',
-    'cancel',
-    'snapshot',
-    'bitmap',
-    'close',
-    'addProgressListener',
-    'addSpeedListener'
-  ]) {
-    assert.equal(typeof DownloadTask.prototype[method], 'function')
-  }
-})
-
-test('loads CommonJS exports', () => {
-  const commonjs = require('../dist/index.cjs')
-
   assert.equal(typeof commonjs.DownloadTask, 'function')
   assert.equal(typeof commonjs.downloadToCompletion, 'function')
 })
 
-test('calls the native binding', async () => {
+test('calls the installed native binding', async () => {
   const task = new DownloadTask({
     url: 'http://127.0.0.1:1/file',
-    targetPath: join(tmpdir(), `takanawa-node-${process.pid}.tmp`)
+    targetPath: join(tmpdir(), `takanawa-node-installed-${process.pid}.tmp`)
   })
 
   try {

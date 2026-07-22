@@ -3,6 +3,23 @@
 Node.js and Electron bindings for Takanawa, built with napi-rs and wrapped with
 the shared Takanawa TypeScript API.
 
+## Supported Platforms
+
+The npm package includes prebuilt native addons for:
+
+| Operating system | Architecture | Native target |
+| --- | --- | --- |
+| Linux (glibc) | x64 | `x86_64-unknown-linux-gnu` |
+| macOS 11 or newer | Apple silicon | `aarch64-apple-darwin` |
+| Windows | x64 | `x86_64-pc-windows-msvc` |
+
+## TODO
+
+- [ ] Build, test, and publish the Linux ARM64 GNU/glibc addon (`aarch64-unknown-linux-gnu`).
+- [ ] Build, test, and publish the Intel macOS x64 addon (`x86_64-apple-darwin`).
+
+These targets are not currently shipped in the npm package.
+
 ## Development
 
 ```sh

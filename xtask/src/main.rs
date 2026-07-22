@@ -46,6 +46,7 @@ fn run_main() -> Result<()> {
         "github-release" => release::github_release(),
         "npm-publish" => js::npm_publish(args.next().as_deref().unwrap_or("")),
         "nuget-publish" => csharp::nuget_publish(args.next().as_deref().unwrap_or("")),
+        "package-takanawa-node-npm" => js::package_takanawa_node_npm(),
         "package-swiftpm" => apple::package_swiftpm(),
         "pack-csharp" => csharp::pack_csharp(),
         "prepare-csharp-nuget-assets" => csharp::prepare_csharp_nuget_assets(),
@@ -99,6 +100,7 @@ fn print_usage() {
            github-release
            npm-publish <dry-run|publish>
            nuget-publish <dry-run|publish>
+           package-takanawa-node-npm
            package-swiftpm
            pack-csharp
            prepare-csharp-nuget-assets
