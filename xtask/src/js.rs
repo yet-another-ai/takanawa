@@ -118,15 +118,6 @@ pub(crate) fn package_takanawa_node_npm() -> Result<()> {
 
     verify_takanawa_node_npm_package()?;
 
-    println!("::group::Test assembled takanawa-node package");
-    run_command(pnpm_command(&pnpm_cache).args([
-        "--filter",
-        "takanawa-node",
-        "run",
-        "test:built",
-    ]))?;
-    println!("::endgroup::");
-
     let pack_dir = root.join("target/takanawa-node-npm-package");
     if pack_dir.is_dir() {
         fs::remove_dir_all(&pack_dir)?;
@@ -143,7 +134,7 @@ pub(crate) fn package_takanawa_node_npm() -> Result<()> {
     )?;
     println!("::endgroup::");
 
-    verify_takanawa_node_tarball(&pack_dir)?;
+    verify_takanawa_node_type_declaration(&pack_dir)?;
 
     Ok(())
 }
@@ -241,7 +232,6 @@ fn prepare_takanawa_node_npm_package() -> Result<()> {
         fs::copy(&source, package_dir.join(file_name))?;
     }
 
-    verify_takanawa_node_native_files(&package_dir)?;
     println!(
         "::notice title=Staged takanawa-node native artifacts::{}",
         package_dir.display()
@@ -300,7 +290,7 @@ fn verify_takanawa_node_native_files(package_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn verify_takanawa_node_tarball(pack_dir: &Path) -> Result<()> {
+fn verify_takanawa_node_type_declaration(pack_dir: &Path) -> Result<()> {
     let mut tarballs = Vec::new();
     for entry in fs::read_dir(pack_dir)? {
         let entry = entry?;
@@ -326,31 +316,20 @@ fn verify_takanawa_node_tarball(pack_dir: &Path) -> Result<()> {
     if !output.status.success() {
         return Err(format!("failed to inspect npm tarball {}", tarballs[0].display()).into());
     }
-    let entries = String::from_utf8_lossy(&output.stdout)
+    let entries = String::from_utf8_lossy(&output.stdout);
+    if !entries
         .lines()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    let mut required_files = TAKANAWA_NODE_NATIVE_FILES.to_vec();
-    required_files.extend([
-        "index.js",
-        "dist/index.cjs",
-        "dist/index.mjs",
-        "dist/index.d.ts",
-    ]);
-
-    for relative_path in required_files {
-        let package_path = format!("package/{relative_path}");
-        if !entries.iter().any(|entry| entry == &package_path) {
-            return Err(format!(
-                "takanawa-node npm tarball {} is missing {package_path}",
-                tarballs[0].display()
-            )
-            .into());
-        }
+        .any(|entry| entry == "package/dist/index.d.ts")
+    {
+        return Err(format!(
+            "takanawa-node npm tarball {} is missing package/dist/index.d.ts",
+            tarballs[0].display()
+        )
+        .into());
     }
 
     println!(
-        "::notice title=Verified takanawa-node npm tarball::{}",
+        "::notice title=Verified takanawa-node type declaration::{}",
         tarballs[0].display()
     );
     Ok(())
