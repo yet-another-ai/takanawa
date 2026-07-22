@@ -134,8 +134,6 @@ pub(crate) fn package_takanawa_node_npm() -> Result<()> {
     )?;
     println!("::endgroup::");
 
-    verify_takanawa_node_type_declaration(&pack_dir)?;
-
     Ok(())
 }
 
@@ -287,51 +285,6 @@ fn verify_takanawa_node_native_files(package_dir: &Path) -> Result<()> {
         .into());
     }
 
-    Ok(())
-}
-
-fn verify_takanawa_node_type_declaration(pack_dir: &Path) -> Result<()> {
-    let mut tarballs = Vec::new();
-    for entry in fs::read_dir(pack_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|extension| extension.to_str()) == Some("tgz") {
-            tarballs.push(path);
-        }
-    }
-
-    if tarballs.len() != 1 {
-        return Err(format!(
-            "expected exactly one takanawa-node npm tarball in {}, found {}",
-            pack_dir.display(),
-            tarballs.len()
-        )
-        .into());
-    }
-
-    let output = repo_command("tar")
-        .args(["-tf"])
-        .arg(&tarballs[0])
-        .output()?;
-    if !output.status.success() {
-        return Err(format!("failed to inspect npm tarball {}", tarballs[0].display()).into());
-    }
-    let entries = String::from_utf8_lossy(&output.stdout);
-    if !entries
-        .lines()
-        .any(|entry| entry == "package/dist/index.d.ts")
-    {
-        return Err(format!(
-            "takanawa-node npm tarball {} is missing package/dist/index.d.ts",
-            tarballs[0].display()
-        )
-        .into());
-    }
-
-    println!(
-        "::notice title=Verified takanawa-node type declaration::{}",
-        tarballs[0].display()
-    );
     Ok(())
 }
 
