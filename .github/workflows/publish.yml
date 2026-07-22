@@ -62,15 +62,9 @@ jobs:
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - name: Install Node dependencies
-        env:
-          CI: "true"
-        run: pnpm install --frozen-lockfile
+      - run: mise run install:node
       - name: Build and test Linux Node addon
-        run: |
-          pnpm --filter takanawa-node exec napi build --platform --release --target x86_64-unknown-linux-gnu
-          pnpm --filter takanawa-node run build:ts
-          pnpm --filter takanawa-node run test:built
+        run: pnpm --filter takanawa-node test
       - name: Build Linux dynamic library
         run: mise run dist:linux
       - name: Build Linux GDExtension library
@@ -117,17 +111,11 @@ jobs:
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - name: Install Node dependencies
+      - run: mise run install:node
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        env:
-          CI: "true"
-        run: pnpm install --frozen-lockfile
       - name: Build and test Windows Node addon
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        run: |
-          pnpm --filter takanawa-node exec napi build --platform --release --target x86_64-pc-windows-msvc
-          pnpm --filter takanawa-node run build:ts
-          pnpm --filter takanawa-node run test:built
+        run: pnpm --filter takanawa-node test
       - name: Build Windows dynamic library
         env:
           TAKANAWA_WINDOWS_TARGET: ${{ matrix.target }}
@@ -170,17 +158,11 @@ jobs:
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - name: Install Node dependencies
-        env:
-          CI: "true"
-        run: pnpm install --frozen-lockfile
+      - run: mise run install:node
       - name: Build and test macOS Node addon
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
-        run: |
-          pnpm --filter takanawa-node exec napi build --platform --release --target aarch64-apple-darwin
-          pnpm --filter takanawa-node run build:ts
-          pnpm --filter takanawa-node run test:built
+        run: pnpm --filter takanawa-node test
       - name: Verify macOS minimum version
         run: vtool -show-build packages/takanawa-node/takanawa.darwin-arm64.node | grep -E 'minos[[:space:]]+11\.0'
       - name: Build macOS dynamic library and Apple XCFramework
@@ -369,8 +351,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: takanawa-node-*
-          path: target/takanawa-node-npm-artifacts
+          path: packages/takanawa-node
           merge-multiple: true
+      - run: |
+          test -f packages/takanawa-node/index.js
+          test -f packages/takanawa-node/takanawa.linux-x64-gnu.node
+          test -f packages/takanawa-node/takanawa.darwin-arm64.node
+          test -f packages/takanawa-node/takanawa.win32-x64-msvc.node
       - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Enable sccache for Rust builds
         shell: bash

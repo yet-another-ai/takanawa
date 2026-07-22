@@ -39,8 +39,7 @@
     "build:ts": "tsdown",
     "dev:native": "napi build --platform",
     "dev:ts": "tsdown --watch",
-    "test": "pnpm run build && pnpm run test:built",
-    "test:built": "node --test __test__/exports.test.mjs"
+    "test": "pnpm run build && node --test __test__/*.test.mjs"
   },
   "napi": {
     "binaryName": "takanawa",

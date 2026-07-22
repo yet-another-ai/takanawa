@@ -3,16 +3,6 @@
 Use `takanawa-node` for Node.js and Electron runtimes. The package ships a
 Node-API native addon plus ESM and CommonJS TypeScript wrappers.
 
-## Supported Platforms
-
-The npm package includes prebuilt native addons for:
-
-| Operating system | Architecture | Native target |
-| --- | --- | --- |
-| Linux (glibc) | x64 | `x86_64-unknown-linux-gnu` |
-| macOS 11 or newer | Apple silicon | `aarch64-apple-darwin` |
-| Windows | x64 | `x86_64-pc-windows-msvc` |
-
 ## Install
 
 Install from npm:

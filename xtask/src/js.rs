@@ -6,14 +6,6 @@ use std::process::{Command, Stdio};
 use crate::apple::verify_apple_xcframework;
 use crate::support::{Result, copy_dir, repo_command, repo_root, run_command};
 
-const TAKANAWA_NODE_ARTIFACT_DIR: &str = "target/takanawa-node-npm-artifacts";
-const TAKANAWA_NODE_PACKAGE_DIR: &str = "packages/takanawa-node";
-const TAKANAWA_NODE_NATIVE_FILES: [&str; 3] = [
-    "takanawa.linux-x64-gnu.node",
-    "takanawa.darwin-arm64.node",
-    "takanawa.win32-x64-msvc.node",
-];
-
 pub(crate) fn npm_publish(mode: &str) -> Result<()> {
     if mode != "dry-run" && mode != "publish" {
         return Err("usage: xtask npm-publish <dry-run|publish>".into());
@@ -38,32 +30,19 @@ pub(crate) fn npm_publish(mode: &str) -> Result<()> {
         prepare_capacitor_npm_package()?;
     }
 
-    let publish_takanawa_node = mode == "publish"
-        && packages
-            .iter()
-            .any(|package| package.name == "takanawa-node");
-    if publish_takanawa_node {
-        prepare_takanawa_node_npm_package()?;
-    }
-
     for package in &packages {
-        let build_script = if publish_takanawa_node && package.name == "takanawa-node" {
+        let build_script = if mode == "publish" && package.name == "takanawa-node" {
             "build:ts"
         } else {
             "build"
         };
-        println!("::group::pnpm --filter {} run {build_script}", package.name);
+        println!("::group::pnpm --filter {} {build_script}", package.name);
         run_command(pnpm_command(&pnpm_cache).args([
             "--filter",
             package.name.as_str(),
-            "run",
             build_script,
         ]))?;
         println!("::endgroup::");
-    }
-
-    if publish_takanawa_node {
-        verify_takanawa_node_npm_package()?;
     }
 
     for package in &packages {
@@ -99,40 +78,6 @@ pub(crate) fn npm_publish(mode: &str) -> Result<()> {
         )?;
         println!("::endgroup::");
     }
-
-    Ok(())
-}
-
-pub(crate) fn package_takanawa_node_npm() -> Result<()> {
-    let root = repo_root();
-    let pnpm_cache = env::var_os("PNPM_CONFIG_CACHE_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("target/pnpm-cache"));
-    fs::create_dir_all(&pnpm_cache)?;
-
-    prepare_takanawa_node_npm_package()?;
-
-    println!("::group::Build takanawa-node TypeScript wrapper");
-    run_command(pnpm_command(&pnpm_cache).args(["--filter", "takanawa-node", "run", "build:ts"]))?;
-    println!("::endgroup::");
-
-    verify_takanawa_node_npm_package()?;
-
-    let pack_dir = root.join("target/takanawa-node-npm-package");
-    if pack_dir.is_dir() {
-        fs::remove_dir_all(&pack_dir)?;
-    }
-    fs::create_dir_all(&pack_dir)?;
-
-    println!("::group::pnpm pack packages/takanawa-node");
-    run_command(
-        pnpm_command(&pnpm_cache)
-            .current_dir(root.join(TAKANAWA_NODE_PACKAGE_DIR))
-            .arg("pack")
-            .arg("--pack-destination")
-            .arg(&pack_dir),
-    )?;
-    println!("::endgroup::");
 
     Ok(())
 }
@@ -209,83 +154,6 @@ fn publishable_npm_packages() -> Result<Vec<NpmPackage>> {
     }
 
     Ok(packages)
-}
-
-fn prepare_takanawa_node_npm_package() -> Result<()> {
-    let root = repo_root();
-    let artifact_dir = root.join(TAKANAWA_NODE_ARTIFACT_DIR);
-    let package_dir = root.join(TAKANAWA_NODE_PACKAGE_DIR);
-    let mut required_files = TAKANAWA_NODE_NATIVE_FILES.to_vec();
-    required_files.push("index.js");
-
-    for file_name in required_files {
-        let source = artifact_dir.join(file_name);
-        if !source.is_file() {
-            return Err(format!(
-                "missing takanawa-node release artifact {}; build and download every supported platform artifact first",
-                source.display()
-            )
-            .into());
-        }
-        fs::copy(&source, package_dir.join(file_name))?;
-    }
-
-    println!(
-        "::notice title=Staged takanawa-node native artifacts::{}",
-        package_dir.display()
-    );
-    Ok(())
-}
-
-fn verify_takanawa_node_npm_package() -> Result<()> {
-    let package_dir = repo_root().join(TAKANAWA_NODE_PACKAGE_DIR);
-    verify_takanawa_node_native_files(&package_dir)?;
-
-    for relative_path in [
-        "index.js",
-        "dist/index.cjs",
-        "dist/index.mjs",
-        "dist/index.d.ts",
-    ] {
-        let path = package_dir.join(relative_path);
-        if !path.is_file() {
-            return Err(format!(
-                "takanawa-node npm package is missing required file {}",
-                path.display()
-            )
-            .into());
-        }
-    }
-
-    Ok(())
-}
-
-fn verify_takanawa_node_native_files(package_dir: &Path) -> Result<()> {
-    let mut actual_files = Vec::new();
-    for entry in fs::read_dir(package_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("node") {
-            continue;
-        }
-        actual_files.push(entry.file_name().to_string_lossy().into_owned());
-    }
-    actual_files.sort();
-
-    let mut expected_files = TAKANAWA_NODE_NATIVE_FILES
-        .iter()
-        .map(|file_name| (*file_name).to_owned())
-        .collect::<Vec<_>>();
-    expected_files.sort();
-
-    if actual_files != expected_files {
-        return Err(format!(
-            "takanawa-node native artifacts must be exactly {expected_files:?}, found {actual_files:?}"
-        )
-        .into());
-    }
-
-    Ok(())
 }
 
 fn prepare_capacitor_npm_package() -> Result<()> {

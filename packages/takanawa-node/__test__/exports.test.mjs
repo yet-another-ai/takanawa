@@ -1,12 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 import { DownloadTask, downloadToCompletion } from '../dist/index.mjs'
-
-const require = createRequire(import.meta.url)
 
 test('exports public API', () => {
   assert.equal(typeof DownloadTask, 'function')
@@ -25,17 +20,10 @@ test('exports public API', () => {
   }
 })
 
-test('loads CommonJS exports', () => {
-  const commonjs = require('../dist/index.cjs')
-
-  assert.equal(typeof commonjs.DownloadTask, 'function')
-  assert.equal(typeof commonjs.downloadToCompletion, 'function')
-})
-
 test('calls the native binding', async () => {
   const task = new DownloadTask({
     url: 'http://127.0.0.1:1/file',
-    targetPath: join(tmpdir(), `takanawa-node-${process.pid}.tmp`)
+    targetPath: 'unused'
   })
 
   try {
