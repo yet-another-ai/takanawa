@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Takanawa VERSION 0.8.3 LANGUAGES C)
+project(Takanawa VERSION 0.9.0 LANGUAGES C)
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
