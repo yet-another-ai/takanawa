@@ -1,0 +1,18 @@
+name: Set up mise
+description: Install mise tools with a self-contained, shared tool cache
+
+runs:
+  using: composite
+  steps:
+    - name: Configure mise tool cache paths
+      shell: bash
+      run: |
+        printf 'MISE_DATA_DIR=%s\n' "$RUNNER_TEMP/mise" >> "$GITHUB_ENV"
+        printf 'MISE_RUSTUP_HOME=%s\n' "$RUNNER_TEMP/mise/rustup" >> "$GITHUB_ENV"
+        printf 'MISE_CARGO_HOME=%s\n' "$RUNNER_TEMP/mise/cargo" >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@v4
+      with:
+        version: 2026.6.6
+        experimental: true
+        cache_key_prefix: mise-v2
+        cache_save: ${{ github.ref == 'refs/heads/main' }}

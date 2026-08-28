@@ -24,10 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update
@@ -44,8 +41,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - run: mise run build:csharp

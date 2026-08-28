@@ -30,10 +30,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update
@@ -54,10 +51,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -102,10 +96,7 @@ jobs:
             artifact: takanawa-windows-aarch64
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -148,10 +139,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -178,10 +166,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -205,10 +190,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -229,10 +211,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -266,10 +245,7 @@ jobs:
     environment: maven-central
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -307,10 +283,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: actions/download-artifact@v8
         with:
           pattern: takanawa-gdextension-*
@@ -369,10 +342,7 @@ jobs:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: actions/download-artifact@v8
         with:
           name: Takanawa.xcframework-swiftpm
@@ -408,10 +378,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: actions/download-artifact@v8
         with:
           path: target/release-artifacts

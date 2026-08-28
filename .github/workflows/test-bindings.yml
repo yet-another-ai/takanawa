@@ -24,10 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
@@ -39,10 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: ./.github/actions/setup-mise
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
