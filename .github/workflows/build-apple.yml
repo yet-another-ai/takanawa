@@ -1,0 +1,56 @@
+name: Build Apple
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
+
+concurrency:
+  group: build-apple-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apple:
+    name: Apple XCFramework build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.6
+          experimental: true
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: mise run check:apple
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Takanawa.xcframework-swiftpm
+          path: |
+            target/swiftpm/Takanawa.xcframework.zip
+            target/swiftpm/Takanawa.xcframework.zip.checksum
+
+  apple-gdextension:
+    name: Apple GDExtension build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.6
+          experimental: true
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: mise run package:gdextension-ios

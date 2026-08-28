@@ -1,4 +1,4 @@
-name: Build
+name: Test Bindings
 
 on:
   push:
@@ -15,12 +15,12 @@ env:
   SCCACHE_GHA_ENABLED: "true"
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: test-bindings-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  linux:
-    name: Linux release build
+  c-abi:
+    name: C ABI integration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,19 +28,14 @@ jobs:
         with:
           version: 2026.6.6
           experimental: true
-      - name: Install Linux system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - run: mise run build:desktop
-      - run: mise run package:gdextension-desktop
+      - run: mise run test:integration:c-abi
 
   csharp:
-    name: C# binding build
+    name: C# binding
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -48,4 +43,8 @@ jobs:
         with:
           version: 2026.6.6
           experimental: true
-      - run: mise run build:csharp
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: mise run test:csharp

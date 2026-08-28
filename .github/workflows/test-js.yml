@@ -1,0 +1,27 @@
+name: Test JS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-js-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JS packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.6
+          experimental: true
+      - run: mise run test:js
