@@ -19,7 +19,6 @@ runs:
       continue-on-error: true
       uses: jdx/mise-action@v4
       with:
-        version: 2026.6.6
         experimental: true
         cache_key_prefix: mise-v2
         cache_save: ${{ github.ref == 'refs/heads/main' }}
