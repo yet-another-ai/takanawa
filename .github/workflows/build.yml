@@ -1,43 +1,45 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 env:
+  CARGO_INCREMENTAL: "0"
   SCCACHE_GHA_ENABLED: "true"
 
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   linux:
     name: Linux release build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run build:desktop
       - run: mise run package:gdextension-desktop
+
+  csharp:
+    name: C# binding build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - run: mise run build:csharp
 
   windows:
     name: Windows release build (${{ matrix.target }})
@@ -49,13 +51,9 @@ jobs:
           - x86_64-pc-windows-msvc
           - aarch64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -70,17 +68,13 @@ jobs:
     name: Android AAR release build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: mise run package:android-aar
       - run: mise run publish:android-local
       - run: mise run package:gdextension-android
@@ -97,7 +91,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: ./gradlew :android-maven-local-smoke:connectedDebugAndroidTest
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: takanawa-android-aar
           path: android/takanawa-android/build/outputs/aar/takanawa-android-release.aar
@@ -106,32 +100,28 @@ jobs:
     name: Apple XCFramework build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run check:apple
-      - run: mise run package:gdextension-ios
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Takanawa.xcframework-swiftpm
           path: |
             target/swiftpm/Takanawa.xcframework.zip
             target/swiftpm/Takanawa.xcframework.zip.checksum
 
-  csharp:
-    name: C# binding build
-    runs-on: ubuntu-latest
+  apple-gdextension:
+    name: Apple GDExtension build
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - run: mise run build:csharp
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: mise run package:gdextension-ios

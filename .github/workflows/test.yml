@@ -1,21 +1,19 @@
 name: Test
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 env:
+  CARGO_INCREMENTAL: "0"
   SCCACHE_GHA_ENABLED: "true"
 
 concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   test:
@@ -26,18 +24,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
@@ -49,33 +43,25 @@ jobs:
     name: C ABI integration
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run test:integration:c-abi
 
-  js:
-    name: JS packages
+  csharp:
+    name: C# binding
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - run: mise run test:js
+      - run: mise run test:csharp
 
   takanawa-node:
     name: takanawa-node (${{ matrix.os }})
@@ -87,12 +73,12 @@ jobs:
           - macos-15
           - windows-2022
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Enable sccache for Rust builds
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - name: Configure macOS deployment target
         if: runner.os == 'macOS'
         shell: bash
@@ -108,26 +94,22 @@ jobs:
     name: Android checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: mise run check
       - run: mise run check:android
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: takanawa-android-aar
+          name: takanawa-android-aar-check
           path: android/takanawa-android/build/outputs/aar/takanawa-android-release.aar
 
   android-maven-local:
@@ -135,49 +117,33 @@ jobs:
     runs-on: ubuntu-latest
     needs: android
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: mise run publish:android-local
+
+  js:
+    name: JS packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - run: mise run test:js
 
   npm-publish-dry-run:
     name: pnpm publish dry-run
     runs-on: macos-latest
     if: github.ref_type != 'tag'
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - run: mise run package:apple
       - run: mise run npm:publish-dry-run
-
-  csharp:
-    name: C# binding
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-        with:
-          version: 2026.6.6
-          experimental: true
-      - uses: Swatinem/rust-cache@v2
-      - uses: mozilla-actions/sccache-action@v0.0.10
-      - name: Enable sccache for Rust builds
-        shell: bash
-        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - run: mise run test:csharp
