@@ -32,7 +32,7 @@ jobs:
       - name: Enable sccache for Rust builds
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
       - run: mise run package:android-aar
       - run: mise run publish:android-local
       - run: mise run package:gdextension-android
