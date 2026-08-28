@@ -15,9 +15,24 @@ runs:
         printf 'MISE_DATA_DIR=%s\n' "$mise_data_dir" >> "$GITHUB_ENV"
         printf 'MISE_RUSTUP_HOME=%s\n' "$mise_data_dir/rustup" >> "$GITHUB_ENV"
         printf 'MISE_CARGO_HOME=%s\n' "$mise_data_dir/cargo" >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@v4
+    - id: mise
+      continue-on-error: true
+      uses: jdx/mise-action@v4
       with:
         version: 2026.6.6
         experimental: true
         cache_key_prefix: mise-v2
         cache_save: ${{ github.ref == 'refs/heads/main' }}
+    - name: Retry transient tool installation failures
+      if: steps.mise.outcome == 'failure'
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          if mise install --locked; then
+            exit 0
+          fi
+          if [[ "$attempt" == "3" ]]; then
+            exit 1
+          fi
+          sleep $((attempt * 5))
+        done
