@@ -7,9 +7,14 @@ runs:
     - name: Configure mise tool cache paths
       shell: bash
       run: |
-        printf 'MISE_DATA_DIR=%s\n' "$RUNNER_TEMP/mise" >> "$GITHUB_ENV"
-        printf 'MISE_RUSTUP_HOME=%s\n' "$RUNNER_TEMP/mise/rustup" >> "$GITHUB_ENV"
-        printf 'MISE_CARGO_HOME=%s\n' "$RUNNER_TEMP/mise/cargo" >> "$GITHUB_ENV"
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          mise_data_dir="$LOCALAPPDATA/mise"
+        else
+          mise_data_dir="$HOME/.local/share/mise"
+        fi
+        printf 'MISE_DATA_DIR=%s\n' "$mise_data_dir" >> "$GITHUB_ENV"
+        printf 'MISE_RUSTUP_HOME=%s\n' "$mise_data_dir/rustup" >> "$GITHUB_ENV"
+        printf 'MISE_CARGO_HOME=%s\n' "$mise_data_dir/cargo" >> "$GITHUB_ENV"
     - uses: jdx/mise-action@v4
       with:
         version: 2026.6.6
